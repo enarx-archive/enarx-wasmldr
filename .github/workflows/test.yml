@@ -1,0 +1,31 @@
+on: [pull_request]
+name: test
+jobs:
+  test:
+    name: ${{ matrix.toolchain }} (${{ matrix.profile.name }})
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - run: sudo apt update
+      - run: sudo apt install -y musl-tools
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          target: x86_64-unknown-linux-musl
+          override: true
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: ${{ matrix.profile.flag }}
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain:
+          - nightly
+          - beta
+          - stable
+          - 1.46.0
+        profile:
+          - name: debug
+          - name: release
+            flag: --release
