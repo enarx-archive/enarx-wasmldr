@@ -1,17 +1,29 @@
 [package]
-name = "keep-runtime"
+name = "enarx-wasmldr"
 version = "0.1.0"
 authors = ["Stefan Junker <mail@stefanjunker.de>", "Daiki Ueno <dueno@redhat.com>"]
 edition = "2018"
 license = "Apache-2.0"
+homepage = "https://github.com/enarx/enarx-wasmldr"
+repository = "https://github.com/enarx/enarx-wasmldr"
+description = "Enarx WebAssembly Loader"
+readme = "README.md"
+keywords = ["WebAssembly", "wasm"]
+categories = ["development-tools"]
+exclude = [ ".gitignore", ".github/*" ]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[badges]
+# See https://doc.rust-lang.org/cargo/reference/manifest.html#the-badges-section
+github = { repository = "enarx/enarx-wasmldr", workflow = "test" }
+#github = { repository = "enarx/enarx-wasmldr", workflow = "lint" }
+maintenance = { status = "actively-developed" }
+is-it-maintained-issue-resolution = { repository = "enarx/enarx-wasmldr" }
+is-it-maintained-open-issues = { repository = "enarx/enarx-wasmldr" }
 
 [dependencies]
 wasmtime = { version = "0.19.0", default-features = false }
 wasmtime-wasi = { version = "0.19.1", default-features = false }
 wasi-common = { version = "0.19.1", default-features = false }
-
 env_logger = "0.7"
 log = "0.4"
 
