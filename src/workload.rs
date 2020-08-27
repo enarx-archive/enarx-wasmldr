@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::virtfs::TarDirEntry;
+use std::rc::Rc;
+
 /// The error codes of workload execution.
 #[derive(Debug)]
 pub enum Error {
@@ -22,6 +25,27 @@ impl From<std::io::Error> for Error {
 /// Result type used throughout the library.
 pub type Result<T> = std::result::Result<T, Error>;
 
+fn populate_virtfs(root: &mut TarDirEntry, bytes: &[u8]) -> Result<()> {
+    crate::bundle::parse(
+        bytes,
+        crate::bundle::RESOURCES_SECTION,
+        |data| -> std::io::Result<()> {
+            let mut buf = Vec::new();
+            buf.resize(data.len(), 0u8);
+            buf.copy_from_slice(data);
+            let rc = Rc::new(buf);
+            let mut ar = tar::Archive::new(rc.as_slice());
+            for entry in ar.entries()? {
+                let entry = entry?;
+                root.populate(rc.clone(), &entry)?;
+            }
+            Ok(())
+        },
+        |_| Ok(()),
+    )?;
+    Ok(())
+}
+
 /// Runs a WebAssembly workload.
 pub fn run<T: AsRef<[u8]>, U: AsRef<[u8]>, V: std::borrow::Borrow<(U, U)>>(
     bytes: impl AsRef<[u8]>,
@@ -38,6 +62,9 @@ pub fn run<T: AsRef<[u8]>, U: AsRef<[u8]>, V: std::borrow::Borrow<(U, U)>>(
     // Instantiate WASI.
     let mut builder = wasi_common::WasiCtxBuilder::new();
     builder.args(args).envs(envs);
+    let mut root = TarDirEntry::empty_directory();
+    populate_virtfs(&mut root, bytes.as_ref())?;
+    builder.preopened_virt(root.into(), ".");
     let ctx = builder.build().or(Err(Error::InstantiationFailed))?;
     let wasi = wasmtime_wasi::Wasi::new(linker.store(), ctx);
     wasi.add_to_linker(&mut linker)

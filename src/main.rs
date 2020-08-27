@@ -21,6 +21,8 @@
 #![deny(missing_docs)]
 #![deny(clippy::all)]
 
+mod bundle;
+mod virtfs;
 mod workload;
 
 use log::info;
