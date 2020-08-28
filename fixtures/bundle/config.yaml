@@ -1,0 +1,8 @@
+---
+stdio:
+  stdin:
+    Bundle: stdin.txt
+  stdout:
+    File: stdout.txt
+  stderr:
+    File: stderr.txt

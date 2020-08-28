@@ -1,11 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::config::Handle;
 use crate::virtfs::TarDirEntry;
+use std::convert::TryFrom;
 use std::rc::Rc;
+use wasi_common::virtfs::FileContents;
 
 /// The error codes of workload execution.
 #[derive(Debug)]
 pub enum Error {
+    /// configuration error
+    ConfigurationError,
     /// export not found
     ExportNotFound,
     /// module instantiation failed
@@ -64,7 +69,94 @@ pub fn run<T: AsRef<[u8]>, U: AsRef<[u8]>, V: std::borrow::Borrow<(U, U)>>(
     builder.args(args).envs(envs);
     let mut root = TarDirEntry::empty_directory();
     populate_virtfs(&mut root, bytes.as_ref())?;
+
+    // Read deployment configuration from the bundled resource.
+    let mut deploy_config: Option<crate::config::Config> = None;
+    match root {
+        TarDirEntry::Directory(ref map) => {
+            if let Some(config) = map.get("config.yaml") {
+                if let TarDirEntry::File(ref content) = config {
+                    let mut buf = Vec::new();
+                    buf.resize(content.size() as usize, 0u8);
+                    let mut len = 0usize;
+                    loop {
+                        let n = content
+                            .pread(&mut buf[len..], len as u64)
+                            .or(Err(Error::InstantiationFailed))?;
+                        if n == 0 {
+                            break;
+                        }
+                        len += n;
+                        buf.extend((0..len * 2).map(|_| 0u8));
+                    }
+                    let config =
+                        serde_yaml::from_slice(&buf[..len]).or(Err(Error::InstantiationFailed))?;
+                    deploy_config.replace(config);
+                }
+            }
+        }
+        _ => unreachable!(),
+    };
+
+    // Associate stdin handles according to the deployment configuration.
+    if let Some(deploy_config) = deploy_config {
+        match deploy_config.stdio.stdin {
+            Some(Handle::Inherit) => {
+                builder.inherit_stdin();
+            }
+            Some(Handle::File(path)) => {
+                let file = std::fs::OpenOptions::new().read(true).open(&path)?;
+                builder.stdin(wasi_common::OsFile::try_from(file)?);
+            }
+            Some(Handle::Bundle(path)) => {
+                let entry = root.lookup(&path).ok_or(Error::ConfigurationError)?;
+                match entry {
+                    TarDirEntry::Directory(_) => return Err(Error::ConfigurationError),
+                    TarDirEntry::File(file) => {
+                        if let Some(file) = file
+                            .as_any()
+                            .downcast_ref::<crate::virtfs::TarFileContents>()
+                        {
+                            builder.stdin(wasi_common::virtfs::InMemoryFile::new(Box::new(
+                                file.clone(),
+                            )));
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+        match deploy_config.stdio.stdout {
+            Some(Handle::Inherit) => {
+                builder.inherit_stdout();
+            }
+            Some(Handle::File(path)) => {
+                let file = std::fs::OpenOptions::new()
+                    .create(true)
+                    .truncate(true)
+                    .write(true)
+                    .open(&path)?;
+                builder.stdout(wasi_common::OsFile::try_from(file)?);
+            }
+            _ => {}
+        }
+        match deploy_config.stdio.stderr {
+            Some(Handle::Inherit) => {
+                builder.inherit_stderr();
+            }
+            Some(Handle::File(path)) => {
+                let file = std::fs::OpenOptions::new()
+                    .create(true)
+                    .truncate(true)
+                    .write(true)
+                    .open(&path)?;
+                builder.stderr(wasi_common::OsFile::try_from(file)?);
+            }
+            _ => {}
+        }
+    }
     builder.preopened_virt(root.into(), ".");
+
     let ctx = builder.build().or(Err(Error::InstantiationFailed))?;
     let wasi = wasmtime_wasi::Wasi::new(linker.store(), ctx);
     wasi.add_to_linker(&mut linker)
