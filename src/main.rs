@@ -22,6 +22,7 @@
 #![deny(clippy::all)]
 
 mod bundle;
+mod config;
 mod virtfs;
 mod workload;
 
