@@ -1,7 +1,7 @@
 [package]
 name = "enarx-wasmldr"
 version = "0.1.0"
-authors = ["Stefan Junker <mail@stefanjunker.de>", "Daiki Ueno <dueno@redhat.com>"]
+authors = ["Stefan Junker <mail@stefanjunker.de>", "Daiki Ueno <dueno@redhat.com>", "Mike Bursell <mike@p2ptrust.org"]
 edition = "2018"
 license = "Apache-2.0"
 homepage = "https://github.com/enarx/enarx-wasmldr"
@@ -27,17 +27,51 @@ wasi-common = { version = "0.21", default-features = false }
 env_logger = "0.8"
 log = "0.4"
 
+
 wasmparser = "0.70"
+#-----
+koine = { path = "../enarx-poc/koine" }
+#koine = { git = "https://github.com/enarx/koine" }
+uuid =  { version = "0.8", features = ["serde", "v4"] }
+chrono = { version = "0.4.19", features = ["serde"] }
+reqwest = { version = "0.10.7", features = ["blocking", "json", "native-tls"] }
+rand = "0.7.3"
+
+tokio = { version = "0.2", features = ["macros"] }
+warp = { version = "0.2", features = ["tls"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_cbor = "0.10"
+#serde_json = "1.0"
+cbor = { version = "0.4.1" }
+http = "0.2"
+#-----
+
+
+serde_yaml = "0.8"
+
+openssl = { version = "0.10", features = ["vendored"] }
 tar = "0.4"
 tempfile = "3"
 clap = "2.33"
 
-serde = { version = "1.0", features = ["derive"] }
-serde_yaml = "0.8"
 cfg-if = "1.0"
+
 
 [build-dependencies]
 wat = "1.0"
+
+[[bin]]
+name = "enarx-wasmldr"
+path = "src/main.rs"
+
+#[[bin]]
+#name = "enarx-wasmres"
+#path = "src/enarx-wasmres.rs"
+
+#[[bin]]
+#name = "enarx-wasmldr-tester"
+#path = "src/enarx-wasmldr-tester.rs"
+
 
 [profile.release]
 incremental = false
