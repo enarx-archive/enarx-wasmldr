@@ -198,14 +198,13 @@ fn generate_credentials() -> (Vec<u8>, Vec<u8>) {
     let x509_name = x509_name.build();
 
     let mut x509_builder = openssl::x509::X509::builder().unwrap();
-    match x509_builder.set_not_before(&Asn1Time::days_from_now(0).unwrap()) {
-        Err(e) => panic!("Problem creating cert {}", e),
-        Ok(_) => {}
-    };
-    match x509_builder.set_not_after(&Asn1Time::days_from_now(7).unwrap()) {
-        Err(e) => panic!("Problem creating cert {}", e),
-        Ok(_) => {}
-    };
+    if let Err(e) = x509_builder.set_not_before(&Asn1Time::days_from_now(0).unwrap()) {
+        panic!("Problem creating cert {}", e)
+    }
+    if let Err(e) = x509_builder.set_not_after(&Asn1Time::days_from_now(7).unwrap()) {
+        panic!("Problem creating cert {}", e)
+    }
+
     x509_builder.set_subject_name(&x509_name).unwrap();
     x509_builder.set_pubkey(&pkey).unwrap();
     x509_builder.sign(&pkey, MessageDigest::sha256()).unwrap();
