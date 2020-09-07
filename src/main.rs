@@ -119,7 +119,7 @@ async fn main() {
 }
 
 fn create_new_runtime(recvd_data: &[u8]) {
-    format!("About to attempt new runtime creation");
+    println!("About to attempt new runtime creation");
     let _ = env_logger::try_init_from_env(env_logger::Env::default());
     //TODO - get args these from main() if required
     //    let args = std::env::args().skip(1);
@@ -154,8 +154,8 @@ fn get_credentials_bytes() -> (Vec<u8>, Vec<u8>) {
 //implementation for file system
 fn get_cert_bytes_fs() -> Vec<u8> {
     let in_path = Path::new("key-material/server.crt");
-
-    let in_contents = match std::fs::read(in_path) {
+    let in_contents: Vec<u8>;
+    in_contents = match std::fs::read(in_path) {
         Ok(in_contents) => {
             println!("Contents = of {} bytes", &in_contents.len());
             in_contents
@@ -172,8 +172,8 @@ fn get_cert_bytes_fs() -> Vec<u8> {
 fn get_key_bytes_fs() -> Vec<u8> {
     println!("Generating server key (PEM)");
     let in_path = Path::new("key-material/server.key");
-
-    let in_contents = match std::fs::read(in_path) {
+    let in_contents: Vec<u8>;
+    in_contents = match std::fs::read(in_path) {
         Ok(in_contents) => {
             println!("Contents = of {} bytes", &in_contents.len());
             in_contents
