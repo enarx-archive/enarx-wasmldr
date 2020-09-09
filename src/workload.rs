@@ -33,7 +33,6 @@ pub type Result<T> = std::result::Result<T, Error>;
 fn populate_virtfs(root: &mut TarDirEntry, bytes: &[u8]) -> Result<()> {
     crate::bundle::parse(
         bytes,
-        crate::bundle::RESOURCES_SECTION,
         |data| -> std::io::Result<()> {
             let mut buf = Vec::new();
             buf.resize(data.len(), 0u8);

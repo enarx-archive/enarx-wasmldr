@@ -28,7 +28,6 @@ env_logger = "0.7"
 log = "0.4"
 
 wasmparser = "0.62"
-leb128 = "0.2"
 tar = "0.4"
 tempfile = "3"
 clap = "2.33"
@@ -38,10 +37,6 @@ serde_yaml = "0.8"
 
 [build-dependencies]
 wat = "1.0"
-
-[[bin]]
-name = "enarx-wasmres"
-path = "src/enarx-wasmres.rs"
 
 [profile.release]
 incremental = false
