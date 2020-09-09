@@ -243,7 +243,6 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "env_logger",
- "leb128",
  "log",
  "serde",
  "serde_yaml",
