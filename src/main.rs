@@ -98,8 +98,10 @@ fn main() {
 
 #[tokio::main]
 async fn main() {
-    let args: Vec<String> = std::env::args().skip(1).collect();
-
+    //This required when calling from Rust std::process::command.  Recorded
+    // to allow debugging.
+    //    let args: Vec<String> = std::env::args().skip(1).collect();
+    let args: Vec<String> = std::env::args().collect();
     let listen_address: &str = &args[0];
     let listen_port: &str = &args[1];
     let listen_socketaddr = SocketAddr::new(
