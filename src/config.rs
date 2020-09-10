@@ -4,6 +4,9 @@ use std::path::PathBuf;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub enum Handle {
+    /// Discard the I/O
+    Null,
+
     /// Inherit from the parent process
     Inherit,
 

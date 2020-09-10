@@ -4,7 +4,7 @@ use crate::config::Handle;
 use crate::virtfs::TarDirEntry;
 use std::convert::TryFrom;
 use std::rc::Rc;
-use wasi_common::virtfs::FileContents;
+use wasi_common::virtfs::{pipe::ReadPipe, pipe::WritePipe, FileContents};
 
 /// The error codes of workload execution.
 #[derive(Debug)]
@@ -101,7 +101,7 @@ pub fn run<T: AsRef<[u8]>, U: AsRef<[u8]>, V: std::borrow::Borrow<(U, U)>>(
     if let Some(deploy_config) = deploy_config {
         match deploy_config.stdio.stdin {
             Some(Handle::Inherit) => {
-                builder.inherit_stdin();
+                builder.stdin(ReadPipe::new(std::io::stdin()));
             }
             Some(Handle::File(path)) => {
                 let file = std::fs::OpenOptions::new().read(true).open(&path)?;
@@ -123,11 +123,14 @@ pub fn run<T: AsRef<[u8]>, U: AsRef<[u8]>, V: std::borrow::Borrow<(U, U)>>(
                     }
                 }
             }
-            _ => {}
+            Some(Handle::Null) => {}
+            _ => {
+                unreachable!();
+            }
         }
         match deploy_config.stdio.stdout {
             Some(Handle::Inherit) => {
-                builder.inherit_stdout();
+                builder.stdout(WritePipe::new(std::io::stdout()));
             }
             Some(Handle::File(path)) => {
                 let file = std::fs::OpenOptions::new()
@@ -137,11 +140,14 @@ pub fn run<T: AsRef<[u8]>, U: AsRef<[u8]>, V: std::borrow::Borrow<(U, U)>>(
                     .open(&path)?;
                 builder.stdout(wasi_common::OsFile::try_from(file)?);
             }
-            _ => {}
+            Some(Handle::Null) => {}
+            _ => {
+                unreachable!();
+            }
         }
         match deploy_config.stdio.stderr {
             Some(Handle::Inherit) => {
-                builder.inherit_stderr();
+                builder.stderr(WritePipe::new(std::io::stderr()));
             }
             Some(Handle::File(path)) => {
                 let file = std::fs::OpenOptions::new()
@@ -151,7 +157,10 @@ pub fn run<T: AsRef<[u8]>, U: AsRef<[u8]>, V: std::borrow::Borrow<(U, U)>>(
                     .open(&path)?;
                 builder.stderr(wasi_common::OsFile::try_from(file)?);
             }
-            _ => {}
+            Some(Handle::Null) => {}
+            _ => {
+                unreachable!();
+            }
         }
     }
     builder.preopened_virt(root.into(), ".");
