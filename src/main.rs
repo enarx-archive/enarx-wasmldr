@@ -150,47 +150,11 @@ async fn payload_launch(payload: Payload) -> Result<impl warp::Reply, warp::Reje
 
 fn get_credentials_bytes(listen_addr: &str) -> (Vec<u8>, Vec<u8>) {
     let (key, cert) = match KEY_SOURCE {
-        "file-system" => (get_key_bytes_fs(), get_cert_bytes_fs()),
         "generate" => (generate_credentials(&listen_addr)),
         //no match!
         _ => panic!("No match for credentials source"),
     };
     (key, cert)
-}
-
-//implementation for file system
-fn get_cert_bytes_fs() -> Vec<u8> {
-    let in_path = Path::new("key-material/server.crt");
-    let in_contents: Vec<u8>;
-    in_contents = match std::fs::read(in_path) {
-        Ok(in_contents) => {
-            println!("Contents = of {} bytes", &in_contents.len());
-            in_contents
-        }
-        Err(_) => {
-            println!("Failed to read from file");
-            panic!("We have no data to use");
-        }
-    };
-    in_contents
-}
-
-//implementation for file system
-fn get_key_bytes_fs() -> Vec<u8> {
-    println!("Generating server key (PEM)");
-    let in_path = Path::new("key-material/server.key");
-    let in_contents: Vec<u8>;
-    in_contents = match std::fs::read(in_path) {
-        Ok(in_contents) => {
-            println!("Contents = of {} bytes", &in_contents.len());
-            in_contents
-        }
-        Err(_) => {
-            println!("Failed to read from file");
-            panic!("We have no data to use");
-        }
-    };
-    in_contents
 }
 
 //TODO - this is vital code, and needs to be carefully audited!
