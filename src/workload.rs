@@ -162,6 +162,11 @@ pub fn run<T: AsRef<[u8]>, U: AsRef<[u8]>, V: std::borrow::Borrow<(U, U)>>(
                 unreachable!();
             }
         }
+    } else {
+        // Inherit stdio by default
+        builder.stdin(ReadPipe::new(std::io::stdin()));
+        builder.stdout(WritePipe::new(std::io::stdout()));
+        builder.stderr(WritePipe::new(std::io::stderr()));
     }
     builder.preopened_virt(root.into(), ".");
 
