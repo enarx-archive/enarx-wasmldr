@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::config::Handle;
+use crate::config::{Config, ReadOnly, WriteOnly};
 use crate::virtfs::TarDirEntry;
+
 use std::convert::TryFrom;
 use std::rc::Rc;
 use wasi_common::virtfs::{pipe::ReadPipe, pipe::WritePipe, FileContents};
@@ -70,8 +71,7 @@ pub fn run<T: AsRef<[u8]>, U: AsRef<[u8]>, V: std::borrow::Borrow<(U, U)>>(
     populate_virtfs(&mut root, bytes.as_ref())?;
 
     // Read deployment configuration from the bundled resource.
-    let mut deploy_config: Option<crate::config::Config> = None;
-    match root {
+    let deploy_config = match root {
         TarDirEntry::Directory(ref map) => {
             if let Some(config) = map.get("config.yaml") {
                 if let TarDirEntry::File(ref content) = config {
@@ -88,81 +88,83 @@ pub fn run<T: AsRef<[u8]>, U: AsRef<[u8]>, V: std::borrow::Borrow<(U, U)>>(
                         len += n;
                         buf.extend((0..len * 2).map(|_| 0u8));
                     }
-                    let config =
-                        serde_yaml::from_slice(&buf[..len]).or(Err(Error::InstantiationFailed))?;
-                    deploy_config.replace(config);
+
+                    serde_yaml::from_slice(&buf[..len]).or(Err(Error::InstantiationFailed))?
+                } else {
+                    Config::default()
                 }
+            } else {
+                Config::default()
             }
         }
         _ => unreachable!(),
     };
 
     // Associate stdin handles according to the deployment configuration.
-    if let Some(deploy_config) = deploy_config {
-        match deploy_config.stdio.stdin {
-            Some(Handle::Inherit) => {
-                builder.stdin(ReadPipe::new(std::io::stdin()));
-            }
-            Some(Handle::File(path)) => {
-                let file = std::fs::OpenOptions::new().read(true).open(&path)?;
-                builder.stdin(wasi_common::OsFile::try_from(file)?);
-            }
-            Some(Handle::Bundle(path)) => {
-                let entry = root.lookup(&path).ok_or(Error::ConfigurationError)?;
-                match entry {
-                    TarDirEntry::Directory(_) => return Err(Error::ConfigurationError),
-                    TarDirEntry::File(file) => {
-                        if let Some(file) = file
-                            .as_any()
-                            .downcast_ref::<crate::virtfs::TarFileContents>()
-                        {
-                            builder.stdin(wasi_common::virtfs::InMemoryFile::new(Box::new(
-                                file.clone(),
-                            )));
-                        }
+    match deploy_config.stdio.stdin {
+        ReadOnly::Bundle(path) => {
+            let entry = root.lookup(&path).ok_or(Error::ConfigurationError)?;
+            match entry {
+                TarDirEntry::Directory(_) => return Err(Error::ConfigurationError),
+                TarDirEntry::File(file) => {
+                    if let Some(file) = file
+                        .as_any()
+                        .downcast_ref::<crate::virtfs::TarFileContents>()
+                    {
+                        builder.stdin(wasi_common::virtfs::InMemoryFile::new(Box::new(
+                            file.clone(),
+                        )));
                     }
                 }
             }
-            Some(Handle::Null) => {}
-            _ => {
-                unreachable!();
-            }
         }
-        match deploy_config.stdio.stdout {
-            Some(Handle::Inherit) => {
-                builder.stdout(WritePipe::new(std::io::stdout()));
-            }
-            Some(Handle::File(path)) => {
-                let file = std::fs::OpenOptions::new()
-                    .create(true)
-                    .truncate(true)
-                    .write(true)
-                    .open(&path)?;
-                builder.stdout(wasi_common::OsFile::try_from(file)?);
-            }
-            Some(Handle::Null) => {}
-            _ => {
-                unreachable!();
-            }
+
+        ReadOnly::File(path) => {
+            let file = std::fs::OpenOptions::new().read(true).open(&path)?;
+            builder.stdin(wasi_common::OsFile::try_from(file)?);
         }
-        match deploy_config.stdio.stderr {
-            Some(Handle::Inherit) => {
-                builder.stderr(WritePipe::new(std::io::stderr()));
-            }
-            Some(Handle::File(path)) => {
-                let file = std::fs::OpenOptions::new()
-                    .create(true)
-                    .truncate(true)
-                    .write(true)
-                    .open(&path)?;
-                builder.stderr(wasi_common::OsFile::try_from(file)?);
-            }
-            Some(Handle::Null) => {}
-            _ => {
-                unreachable!();
-            }
+
+        ReadOnly::Inherit => {
+            builder.stdin(ReadPipe::new(std::io::stdin()));
         }
+
+        ReadOnly::Null => {}
     }
+
+    match deploy_config.stdio.stdout {
+        WriteOnly::File(path) => {
+            let file = std::fs::OpenOptions::new()
+                .create(true)
+                .truncate(true)
+                .write(true)
+                .open(&path)?;
+            builder.stdout(wasi_common::OsFile::try_from(file)?);
+        }
+
+        WriteOnly::Inherit => {
+            builder.stdout(WritePipe::new(std::io::stdout()));
+        }
+
+        WriteOnly::Null => (),
+    }
+
+    match deploy_config.stdio.stderr {
+        WriteOnly::File(path) => {
+            let file = std::fs::OpenOptions::new()
+                .create(true)
+                .truncate(true)
+                .write(true)
+                .open(&path)?;
+            builder.stderr(wasi_common::OsFile::try_from(file)?);
+        }
+
+        WriteOnly::Inherit => {
+            builder.stderr(WritePipe::new(std::io::stderr()));
+        }
+
+        WriteOnly::Null => (),
+    }
+
     builder.preopened_virt(root.into(), ".");
 
     let ctx = builder.build().or(Err(Error::InstantiationFailed))?;
