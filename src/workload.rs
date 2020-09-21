@@ -230,4 +230,19 @@ pub(crate) mod test {
 
         assert_eq!(results, vec![3]);
     }
+
+    #[cfg(bundle_tests)]
+    #[test]
+    fn workload_run_bundled() {
+        let bytes = include_bytes!(concat!(
+            env!("OUT_DIR"),
+            "/fixtures/hello_wasi_snapshot1.bundled.wasm"
+        ))
+        .to_vec();
+
+        workload::run(&bytes, empty::<&str>(), empty::<(&str, &str)>()).unwrap();
+
+        let output = std::fs::read("stdout.txt").unwrap();
+        assert_eq!(output, "Hello, world!\n".to_string().into_bytes());
+    }
 }
