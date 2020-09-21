@@ -10,6 +10,7 @@ use std::rc::Rc;
 use wasi_common::virtfs::{FileContents, VirtualDirEntry};
 use wasi_common::wasi::{types, Result};
 
+#[derive(Debug, PartialEq)]
 pub(crate) enum TarDirEntry {
     Directory(HashMap<String, TarDirEntry>),
     File(Box<TarFileContents>),
@@ -121,7 +122,7 @@ impl Into<VirtualDirEntry> for TarDirEntry {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct TarFileContents {
     content: Rc<[u8]>,
     offset: u64,
@@ -206,5 +207,45 @@ impl FileContents for TarFileContents {
 
     fn pwrite(&mut self, _buf: &[u8], _offset: types::Filesize) -> Result<usize> {
         Err(types::Errno::Inval)
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod test {
+    use super::*;
+
+    #[test]
+    fn populate_lookup() {
+        let mut builder = tar::Builder::new(Vec::new());
+        builder
+            .append_path_with_name("fixtures/bundle/config.yaml", "config.yaml")
+            .unwrap();
+        builder
+            .append_path_with_name("fixtures/bundle/stdin.txt", "data/stdin.txt")
+            .unwrap();
+        builder.finish().unwrap();
+        let content = builder.into_inner().unwrap();
+
+        let mut root = TarDirEntry::empty_directory();
+        let rc: Rc<[u8]> = content.into_boxed_slice().into();
+        let content = rc.clone();
+        let mut ar = tar::Archive::new(&*content);
+        for entry in ar.entries().unwrap() {
+            let entry = entry.unwrap();
+            root.populate(rc.clone(), &entry).unwrap();
+        }
+        assert_eq!(root.lookup(Path::new("foo")), None);
+        assert!(matches!(
+            root.lookup(Path::new("config.yaml")),
+            Some(TarDirEntry::File(_))
+        ));
+        assert!(matches!(
+            root.lookup(Path::new("data")),
+            Some(TarDirEntry::Directory(_))
+        ));
+        assert!(matches!(
+            root.lookup(Path::new("data/stdin.txt")),
+            Some(TarDirEntry::File(_))
+        ));
     }
 }
