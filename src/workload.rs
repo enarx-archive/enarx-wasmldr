@@ -38,8 +38,8 @@ fn populate_virtfs(root: &mut TarDirEntry, bytes: &[u8]) -> Result<()> {
             let mut buf = Vec::new();
             buf.resize(data.len(), 0u8);
             buf.copy_from_slice(data);
-            let rc = Rc::new(buf);
-            let mut ar = tar::Archive::new(rc.as_slice());
+            let rc: Rc<[u8]> = buf.into_boxed_slice().into();
+            let mut ar = tar::Archive::new(&*rc);
             for entry in ar.entries()? {
                 let entry = entry?;
                 root.populate(rc.clone(), &entry)?;
