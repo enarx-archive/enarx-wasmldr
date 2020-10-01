@@ -44,7 +44,7 @@ impl TarDirEntry {
 
     pub(crate) fn populate<R: Read>(
         &mut self,
-        content: Rc<Vec<u8>>,
+        content: Rc<[u8]>,
         entry: &tar::Entry<R>,
     ) -> std::io::Result<()> {
         match entry.header().entry_type() {
@@ -123,12 +123,12 @@ impl Into<VirtualDirEntry> for TarDirEntry {
 
 #[derive(Clone)]
 pub(crate) struct TarFileContents {
-    content: Rc<Vec<u8>>,
+    content: Rc<[u8]>,
     offset: u64,
 }
 
 impl TarFileContents {
-    fn new(content: Rc<Vec<u8>>, offset: u64) -> Self {
+    fn new(content: Rc<[u8]>, offset: u64) -> Self {
         Self { content, offset }
     }
 
@@ -152,7 +152,7 @@ impl TarFileContents {
     }
 
     fn try_size(&self) -> Result<types::Filesize> {
-        let mut archive = tar::Archive::new(self.content.as_slice());
+        let mut archive = tar::Archive::new(&*self.content);
         let mut entries = archive.entries()?;
         let entry = Self::get_entry(&mut entries, self.offset)?;
         let size = entry.header().size()?;
@@ -188,7 +188,7 @@ impl FileContents for TarFileContents {
     }
 
     fn pread(&self, buf: &mut [u8], offset: types::Filesize) -> Result<usize> {
-        let mut archive = tar::Archive::new(self.content.as_slice());
+        let mut archive = tar::Archive::new(&*self.content);
         let mut entries = archive.entries()?;
         let mut entry = Self::get_entry(&mut entries, self.offset)?;
 
