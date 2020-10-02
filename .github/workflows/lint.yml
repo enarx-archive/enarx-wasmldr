@@ -18,6 +18,15 @@ jobs:
           command: fmt
           args: --all -- --check
 
+  clippy-all:
+    name: clippy::all
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - run: |
+          echo "The following files do not #![deny(clippy::all)]:"
+          ! git grep -LF "#![deny(clippy::all)]" -- "src/main.rs"
+
   clippy:
     name: cargo clippy
     runs-on: ubuntu-latest
