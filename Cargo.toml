@@ -27,7 +27,7 @@ wasi-common = { git = "https://github.com/bytecodealliance/wasmtime.git", rev = 
 env_logger = "0.7"
 log = "0.4"
 
-wasmparser = "0.62"
+wasmparser = "0.63"
 tar = "0.4"
 tempfile = "3"
 clap = "2.33"
