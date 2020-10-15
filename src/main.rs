@@ -47,7 +47,8 @@ const FD: std::os::unix::io::RawFd = 3;
 fn main() {
     let _ = env_logger::try_init_from_env(env_logger::Env::default());
 
-    let mut args = std::env::args().skip(1);
+    let mut args = std::env::args()
+        .skip_while(|s| s.ends_with("enarx-keepldr") || s.ends_with("enarx-wasmldr"));
     let vars = std::env::vars();
 
     let mut reader = if let Some(path) = args.next() {
