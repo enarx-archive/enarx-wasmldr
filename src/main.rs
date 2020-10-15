@@ -47,8 +47,13 @@ const FD: std::os::unix::io::RawFd = 3;
 fn main() {
     let _ = env_logger::try_init_from_env(env_logger::Env::default());
 
-    let mut args = std::env::args()
-        .skip_while(|s| s.ends_with("enarx-keepldr") || s.ends_with("enarx-wasmldr"));
+    // Skip the program name by default, but also skip the enarx-keepldr image
+    // name if it happens to precede the regular command line arguments.
+    let nskip = 1 + std::env::args()
+        .take(1)
+        .filter(|s| s.ends_with("enarx-keepldr"))
+        .count();
+    let mut args = std::env::args().skip(nskip);
     let vars = std::env::vars();
 
     let mut reader = if let Some(path) = args.next() {
