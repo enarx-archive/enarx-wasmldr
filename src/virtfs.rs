@@ -8,7 +8,8 @@ use std::io::ErrorKind;
 use std::path::{Component, Path};
 use std::rc::Rc;
 use wasi_common::virtfs::{FileContents, VirtualDirEntry};
-use wasi_common::wasi::{types, Result};
+use wasi_common::wasi::types;
+use wasi_common::{Error, Result};
 
 #[derive(Debug, PartialEq)]
 pub(crate) enum TarDirEntry {
@@ -148,7 +149,7 @@ impl TarFileContents {
         if let Some(entry) = entry {
             Ok(entry)
         } else {
-            Err(types::Errno::Noent)
+            Err(Error::Noent)
         }
     }
 
@@ -171,13 +172,13 @@ impl FileContents for TarFileContents {
     }
 
     fn resize(&mut self, _new_size: types::Filesize) -> Result<()> {
-        Err(types::Errno::Inval)
+        Err(Error::Inval)
     }
 
     fn preadv(&self, iovs: &mut [std::io::IoSliceMut], offset: types::Filesize) -> Result<usize> {
         let mut read_total = 0usize;
         for iov in iovs.iter_mut() {
-            let skip: u64 = read_total.try_into().map_err(|_| types::Errno::Inval)?;
+            let skip: u64 = read_total.try_into().map_err(|_| Error::Inval)?;
             let read = self.pread(iov, offset + skip)?;
             read_total = read_total.checked_add(read).expect("FileContents::preadv must not be called when reads could total to more bytes than the return value can hold");
         }
@@ -185,7 +186,7 @@ impl FileContents for TarFileContents {
     }
 
     fn pwritev(&mut self, _iovs: &[std::io::IoSlice], _offset: types::Filesize) -> Result<usize> {
-        Err(types::Errno::Inval)
+        Err(Error::Inval)
     }
 
     fn pread(&self, buf: &mut [u8], offset: types::Filesize) -> Result<usize> {
@@ -193,7 +194,7 @@ impl FileContents for TarFileContents {
         let mut entries = archive.entries()?;
         let mut entry = Self::get_entry(&mut entries, self.offset)?;
 
-        let offset: usize = offset.try_into().map_err(|_| types::Errno::Inval)?;
+        let offset: usize = offset.try_into().map_err(|_| Error::Inval)?;
 
         let size: usize = entry.header().size()?.try_into()?;
         let data_remaining = size.saturating_sub(offset);
@@ -206,7 +207,7 @@ impl FileContents for TarFileContents {
     }
 
     fn pwrite(&mut self, _buf: &[u8], _offset: types::Filesize) -> Result<usize> {
-        Err(types::Errno::Inval)
+        Err(Error::Inval)
     }
 }
 
