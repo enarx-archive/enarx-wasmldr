@@ -103,7 +103,8 @@ async fn main() {
     //    let args: Vec<String> = std::env::args().skip(1).collect();
     let args: Vec<String> = std::env::args().collect();
     //FIXME - hard-coding for now
-    let listen_address: &str = "127.0.0.1";
+    //    let listen_address: &str = "127.0.0.1";
+    let listen_address: &str = "192.168.1.202";
     //    let listen_address: &str = &args[0];
     //FIXME - hard-coding for now
     let listen_port: &str = "3040";
@@ -166,17 +167,14 @@ fn generate_credentials(listen_addr: &str) -> (Vec<u8>, Vec<u8>) {
     let key = Rsa::generate(2048).unwrap();
     let pkey = PKey::from_rsa(key.clone()).unwrap();
 
-    println!(
-        "Should create a certificate for {}, but using hard-coded 127.0.0.1 instead",
-        &listen_addr
-    );
+    println!("Create a certificate for {}", &listen_addr);
 
     let mut x509_name = openssl::x509::X509NameBuilder::new().unwrap();
     x509_name.append_entry_by_text("C", "GB").unwrap();
     x509_name.append_entry_by_text("O", "enarx-test").unwrap();
     //FIXME - we should use &listen-addr, but this fails
-    //x509_name.append_entry_by_text("CN", &listen_addr).unwrap();
-    x509_name.append_entry_by_text("CN", "127.0.0.1").unwrap();
+    x509_name.append_entry_by_text("CN", &listen_addr).unwrap();
+    //x509_name.append_entry_by_text("CN", "nail.localdomain").unwrap();
     let x509_name = x509_name.build();
 
     let mut x509_builder = openssl::x509::X509::builder().unwrap();
