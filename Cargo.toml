@@ -41,26 +41,25 @@ tar = "0.4"
 tempfile = "3"
 clap = "2.33"
 
-
-serde = { version = "1.0", features = ["derive"] }
-serde_yaml = "0.8"
 cfg-if = "1.0"
 
 
 [build-dependencies]
 wat = "1.0"
 
-<<<<<<< HEAD
-=======
 [[bin]]
-name = "enarx-wasmres"
-path = "src/enarx-wasmres.rs"
+name = "enarx-wasmldr"
+path = "src/main.rs"
+
+#[[bin]]
+#name = "enarx-wasmres"
+#path = "src/enarx-wasmres.rs"
 
 [[bin]]
 name = "enarx-wasmldr-tester"
 path = "src/enarx-wasmldr-tester.rs"
 
->>>>>>> a379634... Added enarx-wasmldr-tester and associated files
+
 [profile.release]
 incremental = false
 codegen-units = 1

@@ -27,7 +27,7 @@
 //! ```
 //!
 
-#![deny(missing_docs)]
+//#![deny(missing_docs)]
 #![deny(clippy::all)]
 //#![feature(proc_macro_hygiene, decl_macro)]
 
