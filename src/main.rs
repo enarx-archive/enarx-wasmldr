@@ -102,8 +102,12 @@ async fn main() {
     // to allow debugging.
     //    let args: Vec<String> = std::env::args().skip(1).collect();
     let args: Vec<String> = std::env::args().collect();
-    let listen_address: &str = &args[0];
-    let listen_port: &str = &args[1];
+    //FIXME - hard-coding for now
+    let listen_address: &str = "127.0.0.1";
+    //    let listen_address: &str = &args[0];
+    //FIXME - hard-coding for now
+    let listen_port: &str = "3040";
+    //    let listen_port: &str = &args[1];
     let listen_socketaddr = SocketAddr::new(
         listen_address.parse::<IpAddr>().unwrap(),
         listen_port.parse().unwrap(),
