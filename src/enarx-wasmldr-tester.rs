@@ -57,7 +57,8 @@ fn main() {
     let connect_uri = format!("https://localhost:{}/payload", connect_port);
     //TEST 2 - other_add:port
     //let connect_uri = format!("https://{}:{}/payload", LOCAL_LISTEN_ADDRESS, connect_port);
-    let connect_uri = format!("https://nail.localdomain:{}/payload", connect_port);
+    let connect_uri = format!("https://nail:{}/payload", connect_port);
+    //    let connect_uri = format!("https://192.168.1.202:{}/payload", connect_port);
 
     //we accept invalid certs here because in the longer term, we will have a mechanism
     // for finding out what the cert should be dynamically, and adding it, but currently,

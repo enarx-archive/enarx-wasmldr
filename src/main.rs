@@ -173,8 +173,11 @@ fn generate_credentials(listen_addr: &str) -> (Vec<u8>, Vec<u8>) {
     x509_name.append_entry_by_text("C", "GB").unwrap();
     x509_name.append_entry_by_text("O", "enarx-test").unwrap();
     //FIXME - we should use &listen-addr, but this fails
-    x509_name.append_entry_by_text("CN", &listen_addr).unwrap();
-    //x509_name.append_entry_by_text("CN", "nail.localdomain").unwrap();
+    x509_name
+        .append_entry_by_text("subjectAltName", &listen_addr)
+        .unwrap();
+    //x509_name.append_entry_by_text("CN", &listen_addr).unwrap();
+    x509_name.append_entry_by_text("CN", "nail").unwrap();
     let x509_name = x509_name.build();
 
     let mut x509_builder = openssl::x509::X509::builder().unwrap();
