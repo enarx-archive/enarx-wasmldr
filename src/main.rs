@@ -36,35 +36,37 @@ mod config;
 mod virtfs;
 mod workload;
 
-use cfg_if::cfg_if;
-
+//use cfg_if::cfg_if;
+/*
 #[macro_use]
 extern crate serde_derive;
-
+*/
+//use http::response::*;
+use http::response::*;
+use koine::*;
+use log::info;
 use openssl::asn1::Asn1Time;
 use openssl::hash::MessageDigest;
 use openssl::pkey::PKey;
 use openssl::rsa::Rsa;
+use serde_cbor::{de, to_vec};
+use std::error::Error;
+use std::fmt;
+//use std::error::Error;
+//use std::fmt;
 use std::net::{IpAddr, SocketAddr};
-use std::path::Path;
-use warp::Filter;
-#[derive(Serialize, Deserialize)]
-struct Payload {
-    encoding: String,
-    contents: Vec<u8>,
-}
-
-use log::info;
 /// Source of the key to use for TLS
-//pub const KEY_SOURCE: &str = "file-system";
-use std::fs::File;
-use std::io::Read;
+//use std::fs::File;
+//use std::io::Read;
 #[cfg(unix)]
-use std::os::unix::io::FromRawFd;
+//use std::os::unix::io::FromRawFd;
+//use std::path::Path;
+//use std::process::Command;
+use warp::Filter;
 
 pub const KEY_SOURCE: &str = "generate";
 #[cfg(unix)]
-const FD: std::os::unix::io::RawFd = 3;
+//const FD: std::os::unix::io::RawFd = 3;
 /*
 fn main() {
     let _ = env_logger::try_init_from_env(env_logger::Env::default());
@@ -95,7 +97,6 @@ fn main() {
         .read_to_end(&mut bytes)
         .expect("Failed to load workload");
 */
-
 #[tokio::main]
 async fn main() {
     //This required when calling from Rust std::process::command.  Recorded
@@ -118,7 +119,8 @@ async fn main() {
     // POST /payload
     let workload = warp::post()
         .and(warp::path("payload"))
-        .and(warp::body::json())
+        //.and(warp::body::json())
+        .and(warp::body::aggregate())
         .and_then(payload_launch);
 
     let routes = workload;
@@ -142,7 +144,7 @@ fn create_new_runtime(recvd_data: &[u8]) {
     println!("Got result (println) {:#?}", result);
     info!("got result: {:#?}", result);
 }
-
+/*
 async fn payload_launch(payload: Payload) -> Result<impl warp::Reply, warp::Rejection> {
     format!("Received a {} file", payload.encoding);
     println!("Received a {} file", payload.encoding);
@@ -151,6 +153,33 @@ async fn payload_launch(payload: Payload) -> Result<impl warp::Reply, warp::Reje
         "Payload received",
         warp::http::StatusCode::OK,
     ))
+}
+ */
+
+async fn payload_launch<B: warp::Buf>(bytes: B) -> Result<impl warp::Reply, warp::Rejection> {
+    let mut bytesvec: Vec<u8> = Vec::new();
+    bytesvec.extend_from_slice(bytes.bytes());
+    //deserialise the Vector into a Payload (and handle errors)
+    let workload: Workload;
+    match de::from_slice(&bytesvec) {
+        Ok(wl) => {
+            workload = wl;
+            println!("Received a workload: {}", workload.human_readable_info);
+            //FIXME! - need to exec from here, not just pass along
+            create_new_runtime(&workload.wasm_binary);
+            let comms_complete = CommsComplete::Success;
+            let cbor_reply_body: Vec<u8> = to_vec(&comms_complete).unwrap();
+            let cbor_reply: CborReply = CborReply {
+                msg: cbor_reply_body,
+            };
+            Ok(cbor_reply)
+        }
+        Err(_) => {
+            println!("Payload parsing problem");
+            let cbore = LocalCborErr::new("Payload parsing problem");
+            Err(warp::reject::custom(cbore))
+        }
+    }
 }
 
 fn get_credentials_bytes(listen_addr: &str) -> (Vec<u8>, Vec<u8>) {
@@ -198,3 +227,43 @@ fn generate_credentials(listen_addr: &str) -> (Vec<u8>, Vec<u8>) {
         certificate.to_pem().unwrap(),
     )
 }
+
+//-----------
+//FIXME! - this should be picked up from koine
+#[derive(Debug)]
+struct CborReply {
+    pub msg: Vec<u8>,
+}
+
+impl warp::reply::Reply for CborReply {
+    fn into_response(self) -> warp::reply::Response {
+        Response::new(self.msg.into())
+    }
+}
+
+#[derive(Debug)]
+struct LocalCborErr {
+    details: String,
+}
+
+impl LocalCborErr {
+    fn new(msg: &str) -> LocalCborErr {
+        LocalCborErr {
+            details: msg.to_string(),
+        }
+    }
+}
+
+impl fmt::Display for LocalCborErr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.details)
+    }
+}
+
+impl Error for LocalCborErr {
+    fn description(&self) -> &str {
+        &self.details
+    }
+}
+
+impl warp::reject::Reject for LocalCborErr {}
