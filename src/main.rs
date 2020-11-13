@@ -132,7 +132,7 @@ async fn main() {
         .await;
 }
 
-fn create_new_runtime(recvd_data: &[u8]) {
+fn create_new_runtime(recvd_data: &[u8]) -> Result<bool, String> {
     println!("About to attempt new runtime creation");
     let _ = env_logger::try_init_from_env(env_logger::Env::default());
     //TODO - get args these from main() if required
@@ -143,18 +143,9 @@ fn create_new_runtime(recvd_data: &[u8]) {
     let result = workload::run(recvd_data, &dummy_arr, vars).expect("Failed to run workload");
     println!("Got result (println) {:#?}", result);
     info!("got result: {:#?}", result);
+    //TODO - some error checking
+    Ok(true)
 }
-/*
-async fn payload_launch(payload: Payload) -> Result<impl warp::Reply, warp::Rejection> {
-    format!("Received a {} file", payload.encoding);
-    println!("Received a {} file", payload.encoding);
-    create_new_runtime(&payload.contents);
-    Ok(warp::reply::with_status(
-        "Payload received",
-        warp::http::StatusCode::OK,
-    ))
-}
- */
 
 async fn payload_launch<B: warp::Buf>(bytes: B) -> Result<impl warp::Reply, warp::Rejection> {
     let mut bytesvec: Vec<u8> = Vec::new();
@@ -164,9 +155,23 @@ async fn payload_launch<B: warp::Buf>(bytes: B) -> Result<impl warp::Reply, warp
     match de::from_slice(&bytesvec) {
         Ok(wl) => {
             workload = wl;
+
             println!("Received a workload: {}", workload.human_readable_info);
-            //FIXME! - need to exec from here, not just pass along
-            create_new_runtime(&workload.wasm_binary);
+
+            //Exit after completion
+            std::process::exit(match create_new_runtime(&workload.wasm_binary) {
+                Ok(_) => {
+                    println!("Success - exiting");
+                    0
+                }
+                Err(err) => {
+                    eprintln!("error: {:?}", err);
+                    1
+                }
+            });
+
+            //FIXME! is this reachable code?
+
             let comms_complete = CommsComplete::Success;
             let cbor_reply_body: Vec<u8> = to_vec(&comms_complete).unwrap();
             let cbor_reply: CborReply = CborReply {

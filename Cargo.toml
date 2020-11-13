@@ -67,9 +67,9 @@ path = "src/main.rs"
 #name = "enarx-wasmres"
 #path = "src/enarx-wasmres.rs"
 
-[[bin]]
-name = "enarx-wasmldr-tester"
-path = "src/enarx-wasmldr-tester.rs"
+#[[bin]]
+#name = "enarx-wasmldr-tester"
+#path = "src/enarx-wasmldr-tester.rs"
 
 
 [profile.release]
