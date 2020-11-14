@@ -102,7 +102,12 @@ async fn main() {
     //This required when calling from Rust std::process::command.  Recorded
     // to allow debugging.
     //    let args: Vec<String> = std::env::args().skip(1).collect();
-    let args: Vec<String> = std::env::args().collect();
+    let _args: Vec<String> = std::env::args().collect();
+
+    //TODO - the mechanism for binding to an IP address is currently undefined.
+    // It is expected that a new bridge will be created, to which this process
+    //  will then bind.
+
     //FIXME - hard-coding for now
     //    let listen_address: &str = "127.0.0.1";
     let listen_address: &str = "192.168.1.202";
@@ -110,6 +115,7 @@ async fn main() {
     //FIXME - hard-coding for now
     let listen_port: &str = "3040";
     //    let listen_port: &str = &args[1];
+
     let listen_socketaddr = SocketAddr::new(
         listen_address.parse::<IpAddr>().unwrap(),
         listen_port.parse().unwrap(),
@@ -170,14 +176,16 @@ async fn payload_launch<B: warp::Buf>(bytes: B) -> Result<impl warp::Reply, warp
                 }
             });
 
-            //FIXME! is this reachable code?
-
-            let comms_complete = CommsComplete::Success;
-            let cbor_reply_body: Vec<u8> = to_vec(&comms_complete).unwrap();
-            let cbor_reply: CborReply = CborReply {
-                msg: cbor_reply_body,
-            };
-            Ok(cbor_reply)
+            //TODO - does this code need to be here?
+            #[allow(unreachable_code)]
+            {
+                let comms_complete = CommsComplete::Success;
+                let cbor_reply_body: Vec<u8> = to_vec(&comms_complete).unwrap();
+                let cbor_reply: CborReply = CborReply {
+                    msg: cbor_reply_body,
+                };
+                Ok(cbor_reply)
+            }
         }
         Err(_) => {
             println!("Payload parsing problem");
