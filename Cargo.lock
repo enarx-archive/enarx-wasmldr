@@ -916,7 +916,6 @@ dependencies = [
  "http",
  "hyper",
  "serde",
- "serde_cbor",
  "strum",
  "tokio",
  "uuid",

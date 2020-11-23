@@ -122,9 +122,9 @@ async fn main() {
     );
     let (server_key, server_cert) = get_credentials_bytes(listen_address);
 
-    // POST /payload
+    // POST /workload
     let workload = warp::post()
-        .and(warp::path("payload"))
+        .and(warp::path("workload"))
         //.and(warp::body::json())
         .and(warp::body::aggregate())
         .and_then(payload_launch);
