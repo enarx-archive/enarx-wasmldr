@@ -181,10 +181,11 @@ async fn payload_launch<B: warp::Buf>(bytes: B) -> Result<impl warp::Reply, warp
             {
                 let comms_complete = CommsComplete::Success;
                 let cbor_reply_body: Vec<u8> = to_vec(&comms_complete).unwrap();
-                let cbor_reply: CborReply = CborReply {
-                    msg: cbor_reply_body,
-                };
-                Ok(cbor_reply)
+                //let cbor_reply: CborReply = CborReply {
+                //    msg: cbor_reply_body,
+                //};
+                //Ok(cbor_reply)
+                Ok(cbor_reply_body)
             }
         }
         Err(_) => {
@@ -240,7 +241,7 @@ fn generate_credentials(listen_addr: &str) -> (Vec<u8>, Vec<u8>) {
         certificate.to_pem().unwrap(),
     )
 }
-
+/*
 //-----------
 //FIXME! - this should be picked up from koine
 #[derive(Debug)]
@@ -253,7 +254,7 @@ impl warp::reply::Reply for CborReply {
         Response::new(self.msg.into())
     }
 }
-
+*/
 #[derive(Debug)]
 struct LocalCborErr {
     details: String,
