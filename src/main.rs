@@ -55,48 +55,12 @@ use std::fmt;
 //use std::error::Error;
 //use std::fmt;
 use std::net::{IpAddr, SocketAddr};
-/// Source of the key to use for TLS
-//use std::fs::File;
-//use std::io::Read;
 #[cfg(unix)]
-//use std::os::unix::io::FromRawFd;
-//use std::path::Path;
 //use std::process::Command;
 use warp::Filter;
 
 pub const KEY_SOURCE: &str = "generate";
 #[cfg(unix)]
-//const FD: std::os::unix::io::RawFd = 3;
-/*
-fn main() {
-    let _ = env_logger::try_init_from_env(env_logger::Env::default());
-
-    // Skip the program name by default, but also skip the enarx-keepldr image
-    // name if it happens to precede the regular command line arguments.
-    let nskip = 1 + std::env::args()
-        .take(1)
-        .filter(|s| s.ends_with("enarx-keepldr"))
-        .count();
-    let mut args = std::env::args().skip(nskip);
-    let vars = std::env::vars();
-
-    let mut reader = if let Some(path) = args.next() {
-        File::open(&path).expect("Unable to open file")
-    } else {
-        cfg_if! {
-            if #[cfg(unix)] {
-                unsafe { File::from_raw_fd(FD) }
-            } else {
-                unreachable!();
-            }
-        }
-    };
-
-    let mut bytes = Vec::new();
-    reader
-        .read_to_end(&mut bytes)
-        .expect("Failed to load workload");
-*/
 #[tokio::main]
 async fn main() {
     //This required when calling from Rust std::process::command.  Recorded
@@ -241,20 +205,7 @@ fn generate_credentials(listen_addr: &str) -> (Vec<u8>, Vec<u8>) {
         certificate.to_pem().unwrap(),
     )
 }
-/*
-//-----------
-//FIXME! - this should be picked up from koine
-#[derive(Debug)]
-struct CborReply {
-    pub msg: Vec<u8>,
-}
 
-impl warp::reply::Reply for CborReply {
-    fn into_response(self) -> warp::reply::Response {
-        Response::new(self.msg.into())
-    }
-}
-*/
 #[derive(Debug)]
 struct LocalCborErr {
     details: String,
