@@ -73,26 +73,22 @@ pub fn run<T: AsRef<[u8]>, U: AsRef<[u8]>, V: std::borrow::Borrow<(U, U)>>(
     // Read deployment configuration from the bundled resource.
     let deploy_config = match root {
         TarDirEntry::Directory(ref map) => {
-            if let Some(config) = map.get("config.yaml") {
-                if let TarDirEntry::File(ref content) = config {
-                    let mut buf = Vec::new();
-                    buf.resize(content.size() as usize, 0u8);
-                    let mut len = 0usize;
-                    loop {
-                        let n = content
-                            .pread(&mut buf[len..], len as u64)
-                            .or(Err(Error::InstantiationFailed))?;
-                        if n == 0 {
-                            break;
-                        }
-                        len += n;
-                        buf.extend((0..len * 2).map(|_| 0u8));
+            if let Some(TarDirEntry::File(ref content)) = map.get("config.yaml") {
+                let mut buf = Vec::new();
+                buf.resize(content.size() as usize, 0u8);
+                let mut len = 0usize;
+                loop {
+                    let n = content
+                        .pread(&mut buf[len..], len as u64)
+                        .or(Err(Error::InstantiationFailed))?;
+                    if n == 0 {
+                        break;
                     }
-
-                    serde_yaml::from_slice(&buf[..len]).or(Err(Error::InstantiationFailed))?
-                } else {
-                    Config::default()
+                    len += n;
+                    buf.extend((0..len * 2).map(|_| 0u8));
                 }
+
+                serde_yaml::from_slice(&buf[..len]).or(Err(Error::InstantiationFailed))?
             } else {
                 Config::default()
             }
