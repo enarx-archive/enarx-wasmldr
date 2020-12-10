@@ -10,6 +10,10 @@ The Enarx Keep runtime binary.
 It can be used to run a Wasm file with given command-line
 arguments and environment variables.
 
+Note: requires openssl development files.  On Fedora, this equates to:
+- openssl-devel
+You may also need to install the Perl-File-Compare and Perl-FindBin packages
+
 ### Example invocation
 
 ```console
