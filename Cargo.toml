@@ -28,7 +28,9 @@ env_logger = "0.8"
 log = "0.4"
 
 
+
 wasmparser = "0.70"
+
 #-----
 #koine = { path = "../enarx-poc/koine" }
 koine = { git = "https://github.com/MikeCamel/koine", branch="poc-dependencies" }
