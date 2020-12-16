@@ -30,7 +30,8 @@ log = "0.4"
 
 wasmparser = "0.69"
 #-----
-koine = { path = "../enarx-poc/koine" }
+#koine = { path = "../enarx-poc/koine" }
+koine = { git = "https://github.com/MikeCamel/koine", branch="poc-dependencies" }
 #koine = { git = "https://github.com/enarx/koine" }
 uuid =  { version = "0.8", features = ["serde", "v4"] }
 chrono = { version = "0.4.19", features = ["serde"] }

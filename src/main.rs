@@ -36,13 +36,6 @@ mod config;
 mod virtfs;
 mod workload;
 
-//use cfg_if::cfg_if;
-/*
-#[macro_use]
-extern crate serde_derive;
-*/
-//use http::response::*;
-use http::response::*;
 use koine::*;
 use log::info;
 use openssl::asn1::Asn1Time;
@@ -52,16 +45,13 @@ use openssl::rsa::Rsa;
 use serde_cbor::{de, to_vec};
 use std::error::Error;
 use std::fmt;
-//use std::error::Error;
-//use std::fmt;
 use std::net::{IpAddr, SocketAddr};
-#[cfg(unix)]
-//use std::process::Command;
+//#[cfg(unix)]
 use warp::Filter;
 
 pub const KEY_SOURCE: &str = "generate";
 #[cfg(unix)]
-#[tokio::main]
+#[tokio::main(basic_scheduler)]
 async fn main() {
     //This required when calling from Rust std::process::command.  Recorded
     // to allow debugging.
@@ -74,7 +64,7 @@ async fn main() {
 
     //FIXME - hard-coding for now
     //    let listen_address: &str = "127.0.0.1";
-    let listen_address: &str = "192.168.1.202";
+    let listen_address: &str = "192.168.1.203";
     //    let listen_address: &str = &args[0];
     //FIXME - hard-coding for now
     let listen_port: &str = "3040";
