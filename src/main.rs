@@ -41,7 +41,8 @@ use log::info;
 use openssl::asn1::Asn1Time;
 use openssl::hash::MessageDigest;
 use openssl::pkey::PKey;
-use openssl::rsa::Rsa;
+use openssl::pkey::Private;
+use openssl::rsa::*;
 use serde_cbor::{de, to_vec};
 use std::error::Error;
 use std::fmt;
@@ -159,9 +160,24 @@ fn get_credentials_bytes(listen_addr: &str) -> (Vec<u8>, Vec<u8>) {
     (key, cert)
 }
 
+fn retrieve_existing_key() -> Option<Rsa<Private>> {
+    //TODO - implement
+    //This function retrieves an existing key from the pre-launch
+    // attestation in the case of AMD SEV
+    //TODO - fix
+    None
+}
+
 //TODO - this is vital code, and needs to be carefully audited!
 fn generate_credentials(listen_addr: &str) -> (Vec<u8>, Vec<u8>) {
-    let key = Rsa::generate(2048).unwrap();
+    //TODO - parameterise key_length?
+    let key_length = 2048;
+    let key_opt = retrieve_existing_key();
+    let key: Rsa<Private> = match key_opt {
+        Some(key) => key,
+        None => Rsa::generate(key_length).unwrap(),
+    };
+
     let pkey = PKey::from_rsa(key.clone()).unwrap();
 
     println!("Create a certificate for {}", &listen_addr);
