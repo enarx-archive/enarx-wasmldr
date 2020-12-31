@@ -5,6 +5,8 @@
 //! It can be used to run a Wasm file with given command-line
 //! arguments and environment variables.
 //!
+//! Now requires compilation with cargo nightly (`cargo +nightly build`)
+//!
 //! ## Example invocation
 //!
 //! ```console
@@ -29,8 +31,10 @@
 
 //#![deny(missing_docs)]
 #![deny(clippy::all)]
+#![feature(asm)]
 //#![feature(proc_macro_hygiene, decl_macro)]
 
+mod attestation;
 mod bundle;
 mod config;
 mod virtfs;
@@ -161,11 +165,38 @@ fn get_credentials_bytes(listen_addr: &str) -> (Vec<u8>, Vec<u8>) {
 }
 
 fn retrieve_existing_key() -> Option<Rsa<Private>> {
-    //TODO - implement
     //This function retrieves an existing key from the pre-launch
     // attestation in the case of AMD SEV
-    //TODO - fix
-    None
+    let input_bytes: &[u8] = &Vec::new();
+    //let mut output_bytes = &Vec::new();
+    let mut output_bytes = vec![0];
+    let expected_key_length: usize = match attestation::attest(&input_bytes, &mut output_bytes) {
+        Ok(attestation) => {
+            let expected_key_length = match attestation {
+                attestation::Attestation::Sev(expected_key_length) => expected_key_length,
+                attestation::Attestation::Sgx(_) => 0,
+                attestation::Attestation::None => 0,
+            };
+            expected_key_length
+        }
+        Err(_) => 0,
+    };
+    if expected_key_length > 0 {
+        //this cast makes sense as the longest key that can be created has length u8
+        let ekl_as_u8: u8 = expected_key_length as u8;
+        let mut key_bytes = vec![0, ekl_as_u8];
+        let attempted_attestation_result =
+            attestation::attest(&input_bytes, &mut key_bytes).unwrap();
+        //TODO - error checking
+        let key_result = openssl::rsa::Rsa::private_key_from_pem(&key_bytes);
+        let key: Option<Rsa<Private>> = match key_result {
+            Ok(key) => Some(key),
+            Err(_) => None,
+        };
+        key
+    } else {
+        None
+    }
 }
 
 //TODO - this is vital code, and needs to be carefully audited!
