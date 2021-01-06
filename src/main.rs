@@ -52,6 +52,7 @@ use std::error::Error;
 use std::fmt;
 use std::net::{IpAddr, SocketAddr};
 //#[cfg(unix)]
+use sys_info::*;
 use warp::Filter;
 
 pub const KEY_SOURCE: &str = "generate";
@@ -211,7 +212,11 @@ fn generate_credentials(listen_addr: &str) -> (Vec<u8>, Vec<u8>) {
 
     let pkey = PKey::from_rsa(key.clone()).unwrap();
 
-    println!("Create a certificate for {}", &listen_addr);
+    let myhostname = hostname().unwrap();
+    println!(
+        "Create a certificate for {} ({})",
+        &listen_addr, &myhostname
+    );
 
     let mut x509_name = openssl::x509::X509NameBuilder::new().unwrap();
     x509_name.append_entry_by_text("C", "GB").unwrap();
@@ -221,7 +226,10 @@ fn generate_credentials(listen_addr: &str) -> (Vec<u8>, Vec<u8>) {
         .append_entry_by_text("subjectAltName", &listen_addr)
         .unwrap();
     //x509_name.append_entry_by_text("CN", &listen_addr).unwrap();
-    x509_name.append_entry_by_text("CN", "nail").unwrap();
+    //x509_name.append_entry_by_text("CN", "nail").unwrap();
+    x509_name.append_entry_by_text("CN", &myhostname).unwrap();
+    //TODO - include SGX case, where we're adding public key (?) information
+    //       to this cert
     let x509_name = x509_name.build();
 
     let mut x509_builder = openssl::x509::X509::builder().unwrap();
