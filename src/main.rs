@@ -100,7 +100,7 @@ async fn main() {
 }
 
 fn create_new_runtime(recvd_data: &[u8]) -> Result<bool, String> {
-    println!("About to attempt new runtime creation");
+    //println!("About to attempt new runtime creation");
     let _ = env_logger::try_init_from_env(env_logger::Env::default());
     //TODO - get args these from main() if required
     //    let args = std::env::args().skip(1);
@@ -108,19 +108,19 @@ fn create_new_runtime(recvd_data: &[u8]) -> Result<bool, String> {
     let vars = std::env::vars();
 
     let result = workload::run(recvd_data, &dummy_arr, vars).expect("Failed to run workload");
-    println!("Got result (println) {:#?}", result);
+    //println!("Got result (println) {:#?}", result);
     info!("got result: {:#?}", result);
     //TODO - some error checking
     Ok(true)
 }
 
 async fn payload_launch<B: warp::Buf>(bytes: B) -> Result<impl warp::Reply, warp::Rejection> {
-    println!(
-        "payload_launch bytes.bytes().len() = {}",
-        bytes.bytes().len()
-    );
+    //println!(
+    //    "payload_launch bytes.bytes().len() = {}",
+    //    bytes.bytes().len()
+    //);
     let wbytes: &[u8] = bytes.bytes();
-    println!("payload_launch received {} bytes", wbytes.len());
+    //println!("payload_launch received {} bytes", wbytes.len());
     let workload_bytes = wbytes.as_ref();
 
     //deserialise the Vector into a Payload (and handle errors)
@@ -129,12 +129,12 @@ async fn payload_launch<B: warp::Buf>(bytes: B) -> Result<impl warp::Reply, warp
         Ok(wl) => {
             workload = wl;
 
-            println!("Received a workload: {}", workload.human_readable_info);
+            //println!("Received a workload: {}", workload.human_readable_info);
 
             //Exit after completion
             std::process::exit(match create_new_runtime(&workload.wasm_binary) {
                 Ok(_) => {
-                    println!("Success - exiting");
+                    //println!("Success - exiting");
                     0
                 }
                 Err(err) => {
@@ -196,7 +196,7 @@ fn retrieve_existing_key() -> Option<Rsa<Private>> {
         let attempted_attestation_result =
             attestation::attest(&input_bytes, &mut key_bytes).unwrap();
         //TODO - error checking
-        let key_result = openssl::rsa::Rsa::private_key_from_pem(&key_bytes);
+        let key_result = openssl::rsa::Rsa::private_key_from_der(&key_bytes);
         let key: Option<Rsa<Private>> = match key_result {
             Ok(key) => Some(key),
             Err(_) => None,
@@ -220,10 +220,10 @@ fn generate_credentials(listen_addr: &str) -> (Vec<u8>, Vec<u8>) {
     let pkey = PKey::from_rsa(key.clone()).unwrap();
 
     let myhostname = hostname().unwrap();
-    println!(
-        "Create a certificate for {} ({})",
-        &listen_addr, &myhostname
-    );
+    //println!(
+    //    "Create a certificate for {} ({})",
+    //    &listen_addr, &myhostname
+    //);
 
     let mut x509_name = openssl::x509::X509NameBuilder::new().unwrap();
     x509_name.append_entry_by_text("C", "GB").unwrap();
@@ -253,6 +253,7 @@ fn generate_credentials(listen_addr: &str) -> (Vec<u8>, Vec<u8>) {
     let certificate = x509_builder.build();
 
     (
+        //TODO - move to der
         key.private_key_to_pem().unwrap(),
         certificate.to_pem().unwrap(),
     )
