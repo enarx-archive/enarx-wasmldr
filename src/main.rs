@@ -70,7 +70,9 @@ async fn main() {
 
     //FIXME - hard-coding for now
     //    let listen_address: &str = "127.0.0.1";
-    let listen_address: &str = "192.168.1.203";
+    //let listen_address: &str = "192.168.1.203";
+    //This is the IP address of rome.sev.lab.enarx.dev (2021-01-07)
+    let listen_address: &str = "147.75.68.181";
     //    let listen_address: &str = &args[0];
     //FIXME - hard-coding for now
     let listen_port: &str = "3040";
@@ -85,8 +87,7 @@ async fn main() {
     // POST /workload
     let workload = warp::post()
         .and(warp::path("workload"))
-        //.and(warp::body::json())
-        .and(warp::body::aggregate())
+        .and(warp::body::bytes())
         .and_then(payload_launch);
 
     let routes = workload;
@@ -114,11 +115,17 @@ fn create_new_runtime(recvd_data: &[u8]) -> Result<bool, String> {
 }
 
 async fn payload_launch<B: warp::Buf>(bytes: B) -> Result<impl warp::Reply, warp::Rejection> {
-    let mut bytesvec: Vec<u8> = Vec::new();
-    bytesvec.extend_from_slice(bytes.bytes());
+    println!(
+        "payload_launch bytes.bytes().len() = {}",
+        bytes.bytes().len()
+    );
+    let wbytes: &[u8] = bytes.bytes();
+    println!("payload_launch received {} bytes", wbytes.len());
+    let workload_bytes = wbytes.as_ref();
+
     //deserialise the Vector into a Payload (and handle errors)
     let workload: Workload;
-    match de::from_slice(&bytesvec) {
+    match de::from_slice(&workload_bytes) {
         Ok(wl) => {
             workload = wl;
 
