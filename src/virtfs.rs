@@ -108,9 +108,9 @@ impl TarDirEntry {
     }
 }
 
-impl Into<VirtualDirEntry> for TarDirEntry {
-    fn into(self) -> VirtualDirEntry {
-        match self {
+impl From<TarDirEntry> for VirtualDirEntry {
+    fn from(entry: TarDirEntry) -> Self {
+        match entry {
             TarDirEntry::Directory(map) => {
                 let mut virt = HashMap::new();
                 for (name, entry) in map {
