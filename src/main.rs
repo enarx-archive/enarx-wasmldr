@@ -52,6 +52,7 @@ use std::error::Error;
 use std::fmt;
 use std::net::{IpAddr, SocketAddr};
 //#[cfg(unix)]
+use ciborium::de::from_reader;
 use sys_info::*;
 use warp::Filter;
 
@@ -83,6 +84,11 @@ async fn main() {
         listen_port.parse().unwrap(),
     );
     let (server_key, server_cert) = get_credentials_bytes(listen_address);
+
+    println!(
+        "Current pem array = {}",
+        std::str::from_utf8(&server_cert.to_pem().unwrap()).unwrap()
+    );
 
     // POST /workload
     let workload = warp::post()
@@ -176,10 +182,11 @@ fn retrieve_existing_key() -> Option<Rsa<Private>> {
     //This function retrieves an existing key from the pre-launch
     // attestation in the case of AMD SEV
     let input_bytes: &[u8] = &Vec::new();
-    //let mut output_bytes = &Vec::new();
-    let mut output_bytes = vec![0];
+    let mut output_bytes = vec![0; 0];
+    println!("output_bytes has length {}", output_bytes.len());
     let expected_key_length: usize = match attestation::attest(&input_bytes, &mut output_bytes) {
         Ok(attestation) => {
+            println!("Attestation OK");
             let expected_key_length = match attestation {
                 attestation::Attestation::Sev(expected_key_length) => expected_key_length,
                 attestation::Attestation::Sgx(_) => 0,
@@ -189,18 +196,47 @@ fn retrieve_existing_key() -> Option<Rsa<Private>> {
         }
         Err(_) => 0,
     };
+    println!("Expected key length = {}", expected_key_length);
     if expected_key_length > 0 {
-        //this cast makes sense as the longest key that can be created has length u8
-        let ekl_as_u8: u8 = expected_key_length as u8;
-        let mut key_bytes = vec![0, ekl_as_u8];
+        //let ekl_as_u16: u16 = expected_key_length as u16;
+        //let mut key_bytes = [0, expected_key_length];
+        let mut cbor_key_bytes: Vec<u8> = Vec::with_capacity(expected_key_length);
+        cbor_key_bytes.resize(expected_key_length, 0);
+        //let mut key_bytes: Vec<u8> = vec![0, ekl_as_u16];
+        println!(
+            "Ready to receive key_bytes, which has length {} ({} expected)",
+            cbor_key_bytes.len(),
+            expected_key_length,
+        );
         let attempted_attestation_result =
-            attestation::attest(&input_bytes, &mut key_bytes).unwrap();
+            attestation::attest(&input_bytes, &mut cbor_key_bytes).unwrap();
+        println!(
+            "Byte array retrieved from attestation, {} bytes",
+            cbor_key_bytes.len()
+        );
+        println!("Bytes = {:?}", &cbor_key_bytes);
+
         //TODO - error checking
-        let key_result = openssl::rsa::Rsa::private_key_from_der(&key_bytes);
+        //let key_bytes: &Vec<u8> = ciborium::de::from_reader(cbor_key_bytes.as_slice()).expect("problem with key serialisation");
+
+        let key_bytes_value: ciborium::value::Value = ciborium::de::from_reader(cbor_key_bytes.as_slice()).unwrap();
+
+        let key_bytes = match key_bytes_value {
+            ciborium::value::Value::Bytes(bytes) => bytes,
+            _ => panic!("not bytes"),
+        };
+
+
+        //TODO - move to der? 
+        let key_result = openssl::rsa::Rsa::private_key_from_pem(&key_bytes);
         let key: Option<Rsa<Private>> = match key_result {
             Ok(key) => Some(key),
-            Err(_) => None,
+            Err(_) => {
+                println!("Error creating RSA private key from pem");
+                None   
+            },
         };
+        println!("Key retrieved from attestation mechanism, successfully created RSA private key");
         key
     } else {
         None
@@ -214,24 +250,26 @@ fn generate_credentials(listen_addr: &str) -> (Vec<u8>, Vec<u8>) {
     let key_opt = retrieve_existing_key();
     let key: Rsa<Private> = match key_opt {
         Some(key) => key,
-        None => Rsa::generate(key_length).unwrap(),
+        None => {
+            println!("No key available, so generating one");
+            Rsa::generate(key_length).unwrap()
+        },
     };
 
     let pkey = PKey::from_rsa(key.clone()).unwrap();
 
-    let myhostname = hostname().unwrap();
-    //println!(
-    //    "Create a certificate for {} ({})",
-    //    &listen_addr, &myhostname
-    //);
-
+    //let myhostname = hostname().unwrap();
+    //FIXME - need to fix this!
+    let myhostname = String::from("rome.sev.lab.enarx.dev");
+    println!("Create a certificate for {}", &myhostname);
     let mut x509_name = openssl::x509::X509NameBuilder::new().unwrap();
     x509_name.append_entry_by_text("C", "GB").unwrap();
     x509_name.append_entry_by_text("O", "enarx-test").unwrap();
-    //FIXME - we should use &listen-addr, but this fails
+    /*
     x509_name
         .append_entry_by_text("subjectAltName", &listen_addr)
         .unwrap();
+        */
     //x509_name.append_entry_by_text("CN", &listen_addr).unwrap();
     //x509_name.append_entry_by_text("CN", "nail").unwrap();
     x509_name.append_entry_by_text("CN", &myhostname).unwrap();
@@ -251,7 +289,17 @@ fn generate_credentials(listen_addr: &str) -> (Vec<u8>, Vec<u8>) {
     x509_builder.set_pubkey(&pkey).unwrap();
     x509_builder.sign(&pkey, MessageDigest::sha256()).unwrap();
     let certificate = x509_builder.build();
-
+    /*
+    println!(
+        "Current pem array = {}",
+        std::str::from_utf8(&certificate.to_pem().unwrap()).unwrap()
+    );
+     
+    println!(
+        "Private key = {}",
+        std::str::from_utf8(&pkey.private_key_to_pem_pkcs8().unwrap()).unwrap()
+    );
+    */
     (
         //TODO - move to der
         key.private_key_to_pem().unwrap(),
