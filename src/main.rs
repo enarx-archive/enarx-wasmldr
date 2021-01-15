@@ -51,6 +51,7 @@ use serde_cbor::{de, to_vec};
 use std::error::Error;
 use std::fmt;
 use std::net::{IpAddr, SocketAddr};
+use std::time::*;
 //#[cfg(unix)]
 use ciborium::de::from_reader;
 use sys_info::*;
@@ -85,10 +86,10 @@ async fn main() {
     );
     let (server_key, server_cert) = get_credentials_bytes(listen_address);
 
-    println!(
-        "Current pem array = {}",
-        std::str::from_utf8(&server_cert.to_pem().unwrap()).unwrap()
-    );
+    //println!(
+    //    "Current pem array = {}",
+    //    std::str::from_utf8(&server_cert).unwrap()
+    //);
 
     // POST /workload
     let workload = warp::post()
@@ -183,7 +184,7 @@ fn retrieve_existing_key() -> Option<Rsa<Private>> {
     // attestation in the case of AMD SEV
     let input_bytes: &[u8] = &Vec::new();
     let mut output_bytes = vec![0; 0];
-    println!("output_bytes has length {}", output_bytes.len());
+    //println!("output_bytes has length {}", output_bytes.len());
     let expected_key_length: usize = match attestation::attest(&input_bytes, &mut output_bytes) {
         Ok(attestation) => {
             println!("Attestation OK");
@@ -196,7 +197,7 @@ fn retrieve_existing_key() -> Option<Rsa<Private>> {
         }
         Err(_) => 0,
     };
-    println!("Expected key length = {}", expected_key_length);
+    //println!("Expected key length = {}", expected_key_length);
     if expected_key_length > 0 {
         //let ekl_as_u16: u16 = expected_key_length as u16;
         //let mut key_bytes = [0, expected_key_length];
@@ -214,7 +215,7 @@ fn retrieve_existing_key() -> Option<Rsa<Private>> {
             "Byte array retrieved from attestation, {} bytes",
             cbor_key_bytes.len()
         );
-        println!("Bytes = {:?}", &cbor_key_bytes);
+        //println!("Bytes = {:?}", &cbor_key_bytes);
 
         //TODO - error checking
         //let key_bytes: &Vec<u8> = ciborium::de::from_reader(cbor_key_bytes.as_slice()).expect("problem with key serialisation");
@@ -278,13 +279,33 @@ fn generate_credentials(listen_addr: &str) -> (Vec<u8>, Vec<u8>) {
     let x509_name = x509_name.build();
 
     let mut x509_builder = openssl::x509::X509::builder().unwrap();
+    //from haraldh
+    x509_builder.set_issuer_name(&x509_name);
+
+
+    //from haraldh
+    //FIXME - this sets certificate creation to daily granularity - need to deal with
+    // occasions when we might straddle the date
+    let t = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let t = t / (60 * 60 * 24) * 60 * 60 * 24;
+    let t_end = t + 60 * 60 * 24 * 7;
+    if let Err(e) = x509_builder.set_not_before(&Asn1Time::from_unix(t as _).unwrap()) {
+        panic!("Problem creating cert {}", e)
+    }
+    if let Err(e) = x509_builder.set_not_after(&Asn1Time::from_unix(t_end as _).unwrap()) {
+        panic!("Problem creating cert {}", e)
+    }
+/* 
     if let Err(e) = x509_builder.set_not_before(&Asn1Time::days_from_now(0).unwrap()) {
         panic!("Problem creating cert {}", e)
     }
     if let Err(e) = x509_builder.set_not_after(&Asn1Time::days_from_now(7).unwrap()) {
         panic!("Problem creating cert {}", e)
     }
-
+*/
     x509_builder.set_subject_name(&x509_name).unwrap();
     x509_builder.set_pubkey(&pkey).unwrap();
     x509_builder.sign(&pkey, MessageDigest::sha256()).unwrap();
