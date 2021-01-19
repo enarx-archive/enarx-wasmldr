@@ -48,10 +48,12 @@ use openssl::pkey::PKey;
 use openssl::pkey::Private;
 use openssl::rsa::*;
 use serde_cbor::{de, to_vec};
-use std::error::Error;
 use std::fmt;
 use std::net::{IpAddr, SocketAddr};
+use std::thread;
 use std::time::*;
+use std::{error::Error, process::exit};
+use tokio::task::*;
 //#[cfg(unix)]
 use ciborium::de::from_reader;
 use sys_info::*;
@@ -121,6 +123,20 @@ fn create_new_runtime(recvd_data: &[u8]) -> Result<bool, String> {
     Ok(true)
 }
 
+fn exit_wrapper(recvd_data: &[u8]) {
+    println!("About to run workload");
+    std::process::exit(match create_new_runtime(&recvd_data) {
+        Ok(_) => {
+            //println!("Success - exiting");
+            0
+        }
+        Err(err) => {
+            eprintln!("error: {:?}", err);
+            1
+        }
+    });
+}
+
 async fn payload_launch<B: warp::Buf>(bytes: B) -> Result<impl warp::Reply, warp::Rejection> {
     //println!(
     //    "payload_launch bytes.bytes().len() = {}",
@@ -136,19 +152,19 @@ async fn payload_launch<B: warp::Buf>(bytes: B) -> Result<impl warp::Reply, warp
         Ok(wl) => {
             workload = wl;
 
-            //println!("Received a workload: {}", workload.human_readable_info);
+            println!("Received a workload: {}", workload.human_readable_info);
 
-            //Exit after completion
-            std::process::exit(match create_new_runtime(&workload.wasm_binary) {
-                Ok(_) => {
-                    //println!("Success - exiting");
-                    0
-                }
-                Err(err) => {
-                    eprintln!("error: {:?}", err);
-                    1
-                }
-            });
+            println!(
+                "About to spawn a workload {} bytes long",
+                &workload.wasm_binary.len()
+            );
+            //FIXME - this code is intended for when we have in-Keep thread support
+            /*
+            tokio::task::spawn(async { move || exit_wrapper(&workload.wasm_binary) });
+            tokio::task::yield_now();
+            */
+            //FIXME - use this for now
+            exit_wrapper(&workload.wasm_binary);
 
             //TODO - does this code need to be here?
             #[allow(unreachable_code)]
@@ -220,22 +236,22 @@ fn retrieve_existing_key() -> Option<Rsa<Private>> {
         //TODO - error checking
         //let key_bytes: &Vec<u8> = ciborium::de::from_reader(cbor_key_bytes.as_slice()).expect("problem with key serialisation");
 
-        let key_bytes_value: ciborium::value::Value = ciborium::de::from_reader(cbor_key_bytes.as_slice()).unwrap();
+        let key_bytes_value: ciborium::value::Value =
+            ciborium::de::from_reader(cbor_key_bytes.as_slice()).unwrap();
 
         let key_bytes = match key_bytes_value {
             ciborium::value::Value::Bytes(bytes) => bytes,
             _ => panic!("not bytes"),
         };
 
-
-        //TODO - move to der? 
+        //TODO - move to der?
         let key_result = openssl::rsa::Rsa::private_key_from_pem(&key_bytes);
         let key: Option<Rsa<Private>> = match key_result {
             Ok(key) => Some(key),
             Err(_) => {
                 println!("Error creating RSA private key from pem");
-                None   
-            },
+                None
+            }
         };
         println!("Key retrieved from attestation mechanism, successfully created RSA private key");
         key
@@ -254,7 +270,7 @@ fn generate_credentials(listen_addr: &str) -> (Vec<u8>, Vec<u8>) {
         None => {
             println!("No key available, so generating one");
             Rsa::generate(key_length).unwrap()
-        },
+        }
     };
 
     let pkey = PKey::from_rsa(key.clone()).unwrap();
@@ -282,7 +298,6 @@ fn generate_credentials(listen_addr: &str) -> (Vec<u8>, Vec<u8>) {
     //from haraldh
     x509_builder.set_issuer_name(&x509_name);
 
-
     //from haraldh
     //FIXME - this sets certificate creation to daily granularity - need to deal with
     // occasions when we might straddle the date
@@ -298,14 +313,14 @@ fn generate_credentials(listen_addr: &str) -> (Vec<u8>, Vec<u8>) {
     if let Err(e) = x509_builder.set_not_after(&Asn1Time::from_unix(t_end as _).unwrap()) {
         panic!("Problem creating cert {}", e)
     }
-/* 
-    if let Err(e) = x509_builder.set_not_before(&Asn1Time::days_from_now(0).unwrap()) {
-        panic!("Problem creating cert {}", e)
-    }
-    if let Err(e) = x509_builder.set_not_after(&Asn1Time::days_from_now(7).unwrap()) {
-        panic!("Problem creating cert {}", e)
-    }
-*/
+    /*
+        if let Err(e) = x509_builder.set_not_before(&Asn1Time::days_from_now(0).unwrap()) {
+            panic!("Problem creating cert {}", e)
+        }
+        if let Err(e) = x509_builder.set_not_after(&Asn1Time::days_from_now(7).unwrap()) {
+            panic!("Problem creating cert {}", e)
+        }
+    */
     x509_builder.set_subject_name(&x509_name).unwrap();
     x509_builder.set_pubkey(&pkey).unwrap();
     x509_builder.sign(&pkey, MessageDigest::sha256()).unwrap();
@@ -315,7 +330,7 @@ fn generate_credentials(listen_addr: &str) -> (Vec<u8>, Vec<u8>) {
         "Current pem array = {}",
         std::str::from_utf8(&certificate.to_pem().unwrap()).unwrap()
     );
-     
+
     println!(
         "Private key = {}",
         std::str::from_utf8(&pkey.private_key_to_pem_pkcs8().unwrap()).unwrap()
