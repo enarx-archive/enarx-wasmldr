@@ -50,9 +50,12 @@ use openssl::rsa::*;
 use serde_cbor::{de, to_vec};
 use std::fmt;
 use std::net::{IpAddr, SocketAddr};
+use std::sync::Arc;
 use std::thread;
 use std::time::*;
 use std::{error::Error, process::exit};
+use tokio::sync::mpsc::*;
+use tokio::sync::Mutex;
 use tokio::task::*;
 //#[cfg(unix)]
 use ciborium::de::from_reader;
@@ -60,6 +63,17 @@ use sys_info::*;
 use warp::Filter;
 
 pub const KEY_SOURCE: &str = "generate";
+pub type WorkloadPackage = Arc<Mutex<Workload>>;
+
+pub struct Trigger {
+    trigger: Sender<()>,
+}
+impl Trigger {
+    async fn do_trig(&self) -> Result<impl warp::Reply, std::convert::Infallible> {
+        self.trigger.clone().send(()).await;
+        Ok(String::from("Hello world"))
+    }
+}
 #[cfg(unix)]
 #[tokio::main(basic_scheduler)]
 async fn main() {
@@ -88,24 +102,81 @@ async fn main() {
     );
     let (server_key, server_cert) = get_credentials_bytes(listen_address);
 
+    let workload_package = new_empty_workload_package();
     //println!(
     //    "Current pem array = {}",
     //    std::str::from_utf8(&server_cert).unwrap()
     //);
-
-    // POST /workload
+    let (trigger, mut rx) = channel(1);
+    let trigger = Arc::new(Trigger { trigger });
     let workload = warp::post()
         .and(warp::path("workload"))
         .and(warp::body::bytes())
-        .and_then(payload_launch);
+        .and(with_workload_package(workload_package.clone()))
+        .and(warp::any().map(move || trigger.clone()))
+        .and_then(payload_load);
+    let route = workload;
+    let (_, service) = warp::serve(route)
+        .tls()
+        .cert(&server_cert)
+        .key(&server_key)
+        .bind_with_graceful_shutdown(listen_socketaddr, async move {
+            rx.recv().await;
+        });
+    service.await;
 
+    // POST /workload
+    /*let workload = warp::post()
+            .and(warp::path("workload"))
+            .and(warp::body::bytes())
+            .and(with_workload_package(workload_package.clone()))
+            .and_then(payload_load);
+    */
+    /*
+    let run = warp::post()
+        .and(warp::path("run"))
+        .and(with_workload_package(workload_package.clone()))
+        .and_then(payload_run);
+
+    //let routes = workload.or(run);
     let routes = workload;
+
+    println!("Create server");
+
+    let server = warp::serve(routes)
+        .tls()
+        .cert(&server_cert)
+        .key(&server_key);
+        */
+    /*
     warp::serve(routes)
         .tls()
         .cert(&server_cert)
         .key(&server_key)
         .run(listen_socketaddr)
         .await;
+    */
+    /*
+    //let (get, run) = tokio::join!(server.run(listen_socketaddr), payload_run(workload_package));
+    let ts = tokio::select! {
+       v = server.run(listen_socketaddr) => payload_run(workload_package),
+    };
+    */
+    let mut wlp = workload_package.lock().await;
+    payload_run_sync(&wlp.wasm_binary);
+}
+
+pub fn new_empty_workload_package() -> WorkloadPackage {
+    Arc::new(Mutex::new(Workload {
+        wasm_binary: vec![0],
+        human_readable_info: String::from(""),
+    }))
+}
+
+pub fn with_workload_package(
+    workload_package: WorkloadPackage,
+) -> impl Filter<Extract = (WorkloadPackage,), Error = std::convert::Infallible> + Clone {
+    warp::any().map(move || workload_package.clone())
 }
 
 fn create_new_runtime(recvd_data: &[u8]) -> Result<bool, String> {
@@ -123,9 +194,9 @@ fn create_new_runtime(recvd_data: &[u8]) -> Result<bool, String> {
     Ok(true)
 }
 
-fn exit_wrapper(recvd_data: &[u8]) {
-    println!("About to run workload");
-    std::process::exit(match create_new_runtime(&recvd_data) {
+fn payload_run_sync(workload_data: &[u8]) -> bool {
+    println!("About to try to run workload");
+    std::process::exit(match create_new_runtime(&workload_data) {
         Ok(_) => {
             //println!("Success - exiting");
             0
@@ -135,9 +206,38 @@ fn exit_wrapper(recvd_data: &[u8]) {
             1
         }
     });
+    true
 }
 
-async fn payload_launch<B: warp::Buf>(bytes: B) -> Result<impl warp::Reply, warp::Rejection> {
+async fn payload_run(
+    workload_package: WorkloadPackage,
+) -> Result<impl warp::Reply, warp::Rejection> {
+    println!("About to try to run workload");
+    let wlp = workload_package.lock().await;
+    if (wlp.wasm_binary.len() == 1) {
+        //we have no payload yet - no action
+    } else {
+        std::process::exit(match create_new_runtime(&wlp.wasm_binary) {
+            Ok(_) => {
+                //println!("Success - exiting");
+                0
+            }
+            Err(err) => {
+                eprintln!("error: {:?}", err);
+                1
+            }
+        });
+    }
+    Ok(String::from("nothing"))
+}
+
+//async fn payload_load<B: warp::Buf>(bytes: B) -> Result<impl warp::Reply, warp::Rejection> {
+async fn payload_load<B: warp::Buf>(
+    bytes: B,
+    workload_package: WorkloadPackage,
+    trigger: Arc<Trigger>,
+) -> Result<impl warp::Reply, warp::Rejection> {
+    let mut wlp = workload_package.lock().await;
     //println!(
     //    "payload_launch bytes.bytes().len() = {}",
     //    bytes.bytes().len()
@@ -158,16 +258,10 @@ async fn payload_launch<B: warp::Buf>(bytes: B) -> Result<impl warp::Reply, warp
                 "About to spawn a workload {} bytes long",
                 &workload.wasm_binary.len()
             );
-            //FIXME - this code is intended for when we have in-Keep thread support
-            /*
-            tokio::task::spawn(async { move || exit_wrapper(&workload.wasm_binary) });
-            tokio::task::yield_now();
-            */
-            //FIXME - use this for now
-            exit_wrapper(&workload.wasm_binary);
+            *wlp = workload;
 
-            //TODO - does this code need to be here?
-            #[allow(unreachable_code)]
+            println!("about to return");
+            trigger.do_trig().await;
             {
                 let comms_complete = CommsComplete::Success;
                 let cbor_reply_body: Vec<u8> = to_vec(&comms_complete).unwrap();

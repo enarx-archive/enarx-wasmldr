@@ -42,6 +42,7 @@ reqwest = { version = "0.10.7", features = ["blocking", "json", "native-tls"] }
 rand = "0.7.3"
 ciborium = { git = "https://github.com/enarx/ciborium" }
 
+futures = "0.3.12"
 tokio = { version = "0.2", features = ["macros"] }
 warp = { version = "0.2", features = ["tls"] }
 serde = { version = "1.0", features = ["derive"] }
