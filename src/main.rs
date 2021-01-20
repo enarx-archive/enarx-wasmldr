@@ -51,15 +51,16 @@ use serde_cbor::{de, to_vec};
 use std::fmt;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
-use std::thread;
+//use std::thread;
+use std::error::Error;
 use std::time::*;
-use std::{error::Error, process::exit};
+//use std::{error::Error, process::exit};
 use tokio::sync::mpsc::*;
 use tokio::sync::Mutex;
-use tokio::task::*;
+//use tokio::task::*;
 //#[cfg(unix)]
-use ciborium::de::from_reader;
-use sys_info::*;
+//use ciborium::de::from_reader;
+//use sys_info::*;
 use warp::Filter;
 
 pub const KEY_SOURCE: &str = "generate";
@@ -70,8 +71,8 @@ pub struct Trigger {
 }
 impl Trigger {
     async fn do_trig(&self) -> Result<impl warp::Reply, std::convert::Infallible> {
-        self.trigger.clone().send(()).await;
-        Ok(String::from("Hello world"))
+        let _trigger_res = self.trigger.clone().send(()).await;
+        Ok(String::from("Trigger to stop HTTPS service"))
     }
 }
 #[cfg(unix)]
@@ -125,44 +126,7 @@ async fn main() {
         });
     service.await;
 
-    // POST /workload
-    /*let workload = warp::post()
-            .and(warp::path("workload"))
-            .and(warp::body::bytes())
-            .and(with_workload_package(workload_package.clone()))
-            .and_then(payload_load);
-    */
-    /*
-    let run = warp::post()
-        .and(warp::path("run"))
-        .and(with_workload_package(workload_package.clone()))
-        .and_then(payload_run);
-
-    //let routes = workload.or(run);
-    let routes = workload;
-
-    println!("Create server");
-
-    let server = warp::serve(routes)
-        .tls()
-        .cert(&server_cert)
-        .key(&server_key);
-        */
-    /*
-    warp::serve(routes)
-        .tls()
-        .cert(&server_cert)
-        .key(&server_key)
-        .run(listen_socketaddr)
-        .await;
-    */
-    /*
-    //let (get, run) = tokio::join!(server.run(listen_socketaddr), payload_run(workload_package));
-    let ts = tokio::select! {
-       v = server.run(listen_socketaddr) => payload_run(workload_package),
-    };
-    */
-    let mut wlp = workload_package.lock().await;
+    let wlp = workload_package.lock().await;
     payload_run_sync(&wlp.wasm_binary);
 }
 
@@ -195,7 +159,7 @@ fn create_new_runtime(recvd_data: &[u8]) -> Result<bool, String> {
 }
 
 fn payload_run_sync(workload_data: &[u8]) -> bool {
-    println!("About to try to run workload");
+    println!("[keepldr] About to run received workload");
     std::process::exit(match create_new_runtime(&workload_data) {
         Ok(_) => {
             //println!("Success - exiting");
@@ -206,32 +170,10 @@ fn payload_run_sync(workload_data: &[u8]) -> bool {
             1
         }
     });
+    #[allow(unreachable_code)]
     true
 }
 
-async fn payload_run(
-    workload_package: WorkloadPackage,
-) -> Result<impl warp::Reply, warp::Rejection> {
-    println!("About to try to run workload");
-    let wlp = workload_package.lock().await;
-    if (wlp.wasm_binary.len() == 1) {
-        //we have no payload yet - no action
-    } else {
-        std::process::exit(match create_new_runtime(&wlp.wasm_binary) {
-            Ok(_) => {
-                //println!("Success - exiting");
-                0
-            }
-            Err(err) => {
-                eprintln!("error: {:?}", err);
-                1
-            }
-        });
-    }
-    Ok(String::from("nothing"))
-}
-
-//async fn payload_load<B: warp::Buf>(bytes: B) -> Result<impl warp::Reply, warp::Rejection> {
 async fn payload_load<B: warp::Buf>(
     bytes: B,
     workload_package: WorkloadPackage,
@@ -244,36 +186,40 @@ async fn payload_load<B: warp::Buf>(
     //);
     let wbytes: &[u8] = bytes.bytes();
     //println!("payload_launch received {} bytes", wbytes.len());
-    let workload_bytes = wbytes.as_ref();
+    let workload_bytes = wbytes;
 
     //deserialise the Vector into a Payload (and handle errors)
     let workload: Workload;
     match de::from_slice(&workload_bytes) {
         Ok(wl) => {
             workload = wl;
-
-            println!("Received a workload: {}", workload.human_readable_info);
-
+            println!(
+                "[keepldr] Received a workload: {}",
+                workload.human_readable_info
+            );
+            /*
             println!(
                 "About to spawn a workload {} bytes long",
                 &workload.wasm_binary.len()
             );
+            */
             *wlp = workload;
-
-            println!("about to return");
-            trigger.do_trig().await;
-            {
-                let comms_complete = CommsComplete::Success;
-                let cbor_reply_body: Vec<u8> = to_vec(&comms_complete).unwrap();
-                //let cbor_reply: CborReply = CborReply {
-                //    msg: cbor_reply_body,
-                //};
-                //Ok(cbor_reply)
-                Ok(cbor_reply_body)
+            let trigger_res = trigger.do_trig().await;
+            match trigger_res {
+                Ok(_) => {
+                    let comms_complete = CommsComplete::Success;
+                    let cbor_reply_body: Vec<u8> = to_vec(&comms_complete).unwrap();
+                    Ok(cbor_reply_body)
+                }
+                Err(_e) => {
+                    let comms_complete = CommsComplete::Failure;
+                    let cbor_reply_body: Vec<u8> = to_vec(&comms_complete).unwrap();
+                    Ok(cbor_reply_body)
+                }
             }
         }
         Err(_) => {
-            println!("Payload parsing problem");
+            println!("[keepldr] Payload parsing problem");
             let cbore = LocalCborErr::new("Payload parsing problem");
             Err(warp::reject::custom(cbore))
         }
@@ -297,39 +243,36 @@ fn retrieve_existing_key() -> Option<Rsa<Private>> {
     //println!("output_bytes has length {}", output_bytes.len());
     let expected_key_length: usize = match attestation::attest(&input_bytes, &mut output_bytes) {
         Ok(attestation) => {
-            println!("Attestation OK");
-            let expected_key_length = match attestation {
+            //println!("Attestation OK");
+            match attestation {
                 attestation::Attestation::Sev(expected_key_length) => expected_key_length,
                 attestation::Attestation::Sgx(_) => 0,
                 attestation::Attestation::None => 0,
-            };
-            expected_key_length
+            }
         }
         Err(_) => 0,
     };
     //println!("Expected key length = {}", expected_key_length);
     if expected_key_length > 0 {
-        //let ekl_as_u16: u16 = expected_key_length as u16;
-        //let mut key_bytes = [0, expected_key_length];
-        let mut cbor_key_bytes: Vec<u8> = Vec::with_capacity(expected_key_length);
-        cbor_key_bytes.resize(expected_key_length, 0);
-        //let mut key_bytes: Vec<u8> = vec![0, ekl_as_u16];
+        let mut cbor_key_bytes: Vec<u8> = vec![0; expected_key_length];
+        /*
         println!(
             "Ready to receive key_bytes, which has length {} ({} expected)",
             cbor_key_bytes.len(),
             expected_key_length,
         );
-        let attempted_attestation_result =
+        */
+        let _attempted_attestation_result =
             attestation::attest(&input_bytes, &mut cbor_key_bytes).unwrap();
+        /*
         println!(
             "Byte array retrieved from attestation, {} bytes",
             cbor_key_bytes.len()
         );
+        */
         //println!("Bytes = {:?}", &cbor_key_bytes);
 
         //TODO - error checking
-        //let key_bytes: &Vec<u8> = ciborium::de::from_reader(cbor_key_bytes.as_slice()).expect("problem with key serialisation");
-
         let key_bytes_value: ciborium::value::Value =
             ciborium::de::from_reader(cbor_key_bytes.as_slice()).unwrap();
 
@@ -343,11 +286,11 @@ fn retrieve_existing_key() -> Option<Rsa<Private>> {
         let key: Option<Rsa<Private>> = match key_result {
             Ok(key) => Some(key),
             Err(_) => {
-                println!("Error creating RSA private key from pem");
+                println!("[keepldr] Error creating RSA private key from pem");
                 None
             }
         };
-        println!("Key retrieved from attestation mechanism, successfully created RSA private key");
+        println!("[keepldr] Key retrieved from attestation, RSA key created");
         key
     } else {
         None
@@ -355,14 +298,14 @@ fn retrieve_existing_key() -> Option<Rsa<Private>> {
 }
 
 //TODO - this is vital code, and needs to be carefully audited!
-fn generate_credentials(listen_addr: &str) -> (Vec<u8>, Vec<u8>) {
+fn generate_credentials(_listen_addr: &str) -> (Vec<u8>, Vec<u8>) {
     //TODO - parameterise key_length?
     let key_length = 2048;
     let key_opt = retrieve_existing_key();
     let key: Rsa<Private> = match key_opt {
         Some(key) => key,
         None => {
-            println!("No key available, so generating one");
+            println!("[keepldr] No key available, so generating one");
             Rsa::generate(key_length).unwrap()
         }
     };
@@ -372,25 +315,17 @@ fn generate_credentials(listen_addr: &str) -> (Vec<u8>, Vec<u8>) {
     //let myhostname = hostname().unwrap();
     //FIXME - need to fix this!
     let myhostname = String::from("rome.sev.lab.enarx.dev");
-    println!("Create a certificate for {}", &myhostname);
     let mut x509_name = openssl::x509::X509NameBuilder::new().unwrap();
     x509_name.append_entry_by_text("C", "GB").unwrap();
     x509_name.append_entry_by_text("O", "enarx-test").unwrap();
-    /*
-    x509_name
-        .append_entry_by_text("subjectAltName", &listen_addr)
-        .unwrap();
-        */
-    //x509_name.append_entry_by_text("CN", &listen_addr).unwrap();
-    //x509_name.append_entry_by_text("CN", "nail").unwrap();
+
     x509_name.append_entry_by_text("CN", &myhostname).unwrap();
     //TODO - include SGX case, where we're adding public key (?) information
     //       to this cert
     let x509_name = x509_name.build();
-
     let mut x509_builder = openssl::x509::X509::builder().unwrap();
     //from haraldh
-    x509_builder.set_issuer_name(&x509_name);
+    x509_builder.set_issuer_name(&x509_name).unwrap();
 
     //from haraldh
     //FIXME - this sets certificate creation to daily granularity - need to deal with
@@ -407,18 +342,11 @@ fn generate_credentials(listen_addr: &str) -> (Vec<u8>, Vec<u8>) {
     if let Err(e) = x509_builder.set_not_after(&Asn1Time::from_unix(t_end as _).unwrap()) {
         panic!("Problem creating cert {}", e)
     }
-    /*
-        if let Err(e) = x509_builder.set_not_before(&Asn1Time::days_from_now(0).unwrap()) {
-            panic!("Problem creating cert {}", e)
-        }
-        if let Err(e) = x509_builder.set_not_after(&Asn1Time::days_from_now(7).unwrap()) {
-            panic!("Problem creating cert {}", e)
-        }
-    */
     x509_builder.set_subject_name(&x509_name).unwrap();
     x509_builder.set_pubkey(&pkey).unwrap();
     x509_builder.sign(&pkey, MessageDigest::sha256()).unwrap();
     let certificate = x509_builder.build();
+    println!("[keepldr] Created a certificate for {}", &myhostname);
     /*
     println!(
         "Current pem array = {}",
