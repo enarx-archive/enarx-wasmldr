@@ -71,6 +71,7 @@ pub struct Trigger {
 }
 impl Trigger {
     async fn do_trig(&self) -> Result<impl warp::Reply, std::convert::Infallible> {
+        println!("Activating trigger");
         let _trigger_res = self.trigger.clone().send(()).await;
         Ok(String::from("Trigger to stop HTTPS service"))
     }
@@ -144,7 +145,7 @@ pub fn with_workload_package(
 }
 
 fn create_new_runtime(recvd_data: &[u8]) -> Result<bool, String> {
-    //println!("About to attempt new runtime creation");
+    println!("About to attempt new runtime creation");
     let _ = env_logger::try_init_from_env(env_logger::Env::default());
     //TODO - get args these from main() if required
     //    let args = std::env::args().skip(1);
