@@ -46,7 +46,7 @@ pub fn parse(
             }
             // When parsing nested modules we need to switch which
             // `Parser` we're using.
-            ModuleCodeSectionEntry {
+            ModuleSectionEntry {
                 parser: subparser, ..
             } => {
                 stack.push(parser);
