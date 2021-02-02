@@ -147,14 +147,13 @@ pub fn with_workload_package(
 fn create_new_runtime(recvd_data: &[u8]) -> Result<bool, String> {
     println!("About to attempt new runtime creation");
     let _ = env_logger::try_init_from_env(env_logger::Env::default());
-    //TODO - get args these from main() if required
-    //    let args = std::env::args().skip(1);
     let dummy_arr: [&str; 1] = [""];
     let vars = std::env::vars();
 
     let result = workload::run(recvd_data, &dummy_arr, vars).expect("Failed to run workload");
-    //println!("Got result (println) {:#?}", result);
     info!("got result: {:#?}", result);
+    println!("Got result (println) {:#?}", result);
+    
     //TODO - some error checking
     Ok(true)
 }
