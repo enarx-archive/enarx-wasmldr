@@ -303,7 +303,7 @@ dependencies = [
  "tar",
  "tempfile",
  "wasi-common",
- "wasmparser 0.73.0",
+ "wasmparser 0.78.1",
  "wasmtime",
  "wasmtime-wasi",
  "wat",
@@ -948,9 +948,9 @@ checksum = "89a30c99437829ede826802bfcf28500cf58df00e66cb9114df98813bc145ff1"
 
 [[package]]
 name = "wasmparser"
-version = "0.73.0"
+version = "0.78.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a15011eb23c404cdc1f6f60124a15921a11b060cca195486e36f4dc62e83c61d"
+checksum = "2f9255225d0124a59dd44def5cf98b62d70a27aed921f2c51e28035f08a73b0c"
 
 [[package]]
 name = "wasmtime"
