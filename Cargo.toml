@@ -27,7 +27,7 @@ wasi-common = { version = "0.22", default-features = false }
 env_logger = "0.8"
 log = "0.4"
 
-wasmparser = "0.73"
+wasmparser = "0.79"
 tar = "0.4"
 tempfile = "3"
 clap = "2.33"
