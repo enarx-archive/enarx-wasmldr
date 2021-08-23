@@ -2,14 +2,21 @@
 
 #![allow(missing_docs, unused_variables)] // This is a work-in-progress, so...
 
-use structopt::{StructOpt, clap::AppSettings};
+use structopt::{clap::AppSettings, StructOpt};
 
-use std::path::PathBuf;
 use anyhow::{bail, Result};
+use std::path::PathBuf;
+
+#[cfg(unix)]
+use std::os::unix::io::RawFd;
 
 // The main StructOpt for running `wasmldr` directly
 #[derive(StructOpt, Debug)]
-#[structopt(setting=AppSettings::TrailingVarArg)]
+#[structopt(
+    name = "enarx-wasmtime",
+    setting = AppSettings::TrailingVarArg,
+)]
+/// Loads a WebAssembly module and prepares
 pub struct RunOptions {
     /// Pass an environment variable to the program
     #[structopt(
@@ -26,29 +33,28 @@ pub struct RunOptions {
     invoke: Option<String>,
 
     #[structopt(flatten)]
-    wasmtime: WasmtimeOptions,
+    pub wasmtime: WasmtimeOptions,
 
     // TODO: --inherit-env
     // TODO: --stdin, --stdout, --stderr
+    #[cfg(unix)]
+    /// Load WebAssembly module from the specified file descriptor
+    #[structopt(long, value_name = "FD", required_unless = "module")]
+    pub module_on_fd: Option<RawFd>,
 
-    /// Path of the WebAssembly module to run
-    #[structopt(
-        index = 1,
-        required = true,
-        value_name = "MODULE",
-        parse(from_os_str),
-    )]
+    /// Filename of the WebAssembly module to load
+    #[structopt(index = 1, required = true, value_name = "MODULE", parse(from_os_str))]
     pub module: PathBuf,
 
     // NOTE: this has to come last for TrailingVarArg
     /// Arguments to pass to the WebAssembly module
-    #[structopt(value_name="ARGS")]
+    #[structopt(value_name = "ARGS")]
     pub args: Vec<String>,
 }
 
 // Options that change the behavior of wasmtime
 #[derive(StructOpt, Debug)]
-struct WasmtimeOptions {
+pub struct WasmtimeOptions {
     /// Enable or disable WebAssembly features
     #[structopt(long, value_name = "FEATURE,FEATURE,...", parse(try_from_str = parse_wasm_features))]
     wasm_features: Option<wasmparser::WasmFeatures>,
@@ -64,8 +70,14 @@ fn parse_env_var(s: &str) -> Result<(String, String)> {
 
 const SUPPORTED_WASM_FEATURES: &[(&str, &str)] = &[
     ("all", "enable all supported WebAssembly features"),
-    ("module-linking", "enable support for the module-linking proposal (experimental; implies multi-memory)"),
-    ("multi-memory", "enable support for the multi-memory proposal (experimental)"),
+    (
+        "module-linking",
+        "enable support for the module-linking proposal (experimental; implies multi-memory)",
+    ),
+    (
+        "multi-memory",
+        "enable support for the multi-memory proposal (experimental)",
+    ),
 ];
 
 fn parse_wasm_features(s: &str) -> Result<wasmparser::WasmFeatures> {
@@ -74,7 +86,7 @@ fn parse_wasm_features(s: &str) -> Result<wasmparser::WasmFeatures> {
     /* TODO: match against SUPPORTED_WASM_FEATURES */
     match s {
         "module-linking" => features.module_linking = true,
-        _ => bail!("unknown feature {:?}", s)
+        _ => bail!("unknown feature {:?}", s),
     }
     Ok(features)
 }

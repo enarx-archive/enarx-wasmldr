@@ -30,6 +30,7 @@ log = "0.4"
 wasmparser = "0.80"
 structopt = "0.3.22"
 anyhow = "1.0"
+cfg-if = "1.0"
 
 [build-dependencies]
 wat = "1.0"

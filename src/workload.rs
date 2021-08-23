@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::config::{DeployConfig, HandleFrom};
+use anyhow::{bail, Context, Result};
 use log::debug;
 use wasmtime_wasi::sync::WasiCtxBuilder;
 
@@ -22,20 +24,14 @@ pub enum Error {
     StringTableError,
 }
 
-impl From<std::io::Error> for Error {
-    fn from(err: std::io::Error) -> Self {
-        Self::IoError(err)
+use std::fmt;
+
+/* FIXME: either implement this properly *or* just use anyhow .context */
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "placeholder impl")
     }
 }
-
-impl From<wasmtime_wasi::Error> for Error {
-    fn from(err: wasmtime_wasi::Error) -> Self {
-        Self::WASIError(err)
-    }
-}
-
-/// Result type used throughout the library.
-pub type Result<T> = std::result::Result<T, Error>;
 
 /// Runs a WebAssembly workload.
 pub fn run<T: AsRef<str>, U: AsRef<str>>(
@@ -43,56 +39,87 @@ pub fn run<T: AsRef<str>, U: AsRef<str>>(
     args: impl IntoIterator<Item = T>,
     envs: impl IntoIterator<Item = (U, U)>,
 ) -> Result<Box<[wasmtime::Val]>> {
-    debug!("configuring wasmtime engine");
-    let mut config = wasmtime::Config::new();
+    let mut wasmconfig = wasmtime::Config::new();
+    // FIXME: get features from CLI / config object
     // Support module-linking (https://github.com/webassembly/module-linking)
-    config.wasm_module_linking(true);
+    wasmconfig.wasm_module_linking(true);
     // module-linking requires multi-memory
-    config.wasm_multi_memory(true);
+    wasmconfig.wasm_multi_memory(true);
     // Prefer dynamic memory allocation style over static memory
-    config.static_memory_maximum_size(0);
-    let engine = wasmtime::Engine::new(&config).or(Err(Error::ConfigurationError))?;
+    wasmconfig.static_memory_maximum_size(0);
 
-    debug!("instantiating wasmtime linker");
+    let engine = wasmtime::Engine::new(&wasmconfig).context("configuring engine")?;
+
+    // Set up linker and link WASI into engine
     let mut linker = wasmtime::Linker::new(&engine);
+    wasmtime_wasi::add_to_linker(&mut linker, |s| s).context("adding WASI")?;
 
-    // TODO: read config, set up filehandles & sockets, etc etc
-
-    debug!("adding WASI to linker");
-    wasmtime_wasi::add_to_linker(&mut linker, |s| s)?;
-
-    debug!("creating WASI context");
+    // Add args and envs to the WasiCtx
     let mut wasi = WasiCtxBuilder::new();
     for arg in args {
-        wasi = wasi.arg(arg.as_ref()).or(Err(Error::StringTableError))?;
+        wasi = wasi
+            .arg(arg.as_ref())
+            .context(Error::StringTableError)
+            .context("adding args")?;
     }
     for kv in envs {
         wasi = wasi
             .env(kv.0.as_ref(), kv.1.as_ref())
-            .or(Err(Error::StringTableError))?;
+            .context(Error::StringTableError)
+            .context("adding envs")?;
     }
 
-    debug!("creating wasmtime Store");
+    // TODO: get this config from the caller.. set up filehandles & sockets, etc etc
+    let deploy_config = DeployConfig {
+        stdin: HandleFrom::Inherit,
+        stdout: HandleFrom::Inherit,
+        stderr: HandleFrom::Inherit,
+    };
+    match deploy_config.stdin {
+        HandleFrom::File(path) => {
+            bail!("HandleFrom::File() not implemented")
+        }
+        HandleFrom::Inherit => {
+            wasi = wasi.stdin(Box::new(wasmtime_wasi::stdio::stdin()));
+        }
+        HandleFrom::Null => {}
+    };
+
+    match deploy_config.stdout {
+        HandleFrom::File(path) => {
+            bail!("HandleFrom::File() not implemented")
+        }
+        HandleFrom::Inherit => {
+            wasi = wasi.stdout(Box::new(wasmtime_wasi::stdio::stdout()));
+        }
+        HandleFrom::Null => {}
+    };
+
+    match deploy_config.stderr {
+        HandleFrom::File(path) => {
+            bail!("HandleFrom::File() not implemented")
+        }
+        HandleFrom::Inherit => {
+            wasi = wasi.stderr(Box::new(wasmtime_wasi::stdio::stderr()));
+        }
+        HandleFrom::Null => {}
+    };
+
     let mut store = wasmtime::Store::new(&engine, wasi.build());
-
-    debug!("instantiating module from bytes");
-    let module = wasmtime::Module::from_binary(&engine, bytes.as_ref())?;
-    //.or(Err(Error::InstantiationFailed))?;
-
-    debug!("adding module to store");
+    let module =
+        wasmtime::Module::from_binary(&engine, bytes.as_ref()).context("parsing module")?;
     linker
         .module(&mut store, "", &module)
-        .or(Err(Error::InstantiationFailed))?;
+        .context("instantiation failed")?;
 
     // TODO: use the --invoke FUNCTION name, if any
-    debug!("getting module's default function");
     let func = linker
         .get_default(&mut store, "")
-        .or(Err(Error::ExportNotFound))?;
+        .context(Error::ExportNotFound)
+        .context("export not found")?;
 
-    debug!("calling function");
     func.call(store, Default::default())
-        .or(Err(Error::CallFailed))
+        .context(Error::CallFailed)
 }
 
 #[cfg(test)]
@@ -117,9 +144,15 @@ pub(crate) mod test {
     #[test]
     fn workload_run_no_export() {
         let bytes = include_bytes!(concat!(env!("OUT_DIR"), "/fixtures/no_export.wasm")).to_vec();
-
-        match workload::run(&bytes, empty::<String>(), empty::<(String, String)>()) {
-            Err(workload::Error::ExportNotFound) => {}
+        let err =
+            workload::run(&bytes, empty::<String>(), empty::<(String, String)>()).unwrap_err();
+        match err.downcast_ref::<workload::Error>() {
+            Some(workload::Error::ExportNotFound) => {}
+            _ => panic!("unexpected error"),
+        };
+        /* Not a great way to check errors, but let's be sure it works */
+        match err.to_string().as_str() {
+            "export not found" => {}
             _ => panic!("unexpected error"),
         };
     }
