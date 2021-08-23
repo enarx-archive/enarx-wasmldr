@@ -77,19 +77,21 @@ fn main() -> Result<()> {
                 // SAFETY: unsafe if another struct is using the given fd.
                 // Since we haven't opened any other files yet, we're OK.
                 Some(fd) => {
-                    info!("reading {:?} from fd {:?}", opts.module, fd);
+                    info!("reading module from fd {:?}", fd);
                     unsafe { File::from_raw_fd(fd) }
                 },
                 None => {
-                    info!("reading module from {:?}", opts.module);
-                    File::open(&opts.module)
-                        .with_context(|| format!("failed opening {:?}", opts.module))?
+                    let path = opts.module.expect("required_unless failure");
+                    info!("reading module from {:?}", path);
+                    File::open(&path)
+                        .with_context(|| format!("failed opening {:?}", path))?
                 },
             };
         } else {
-            info!("reading module from {:?}", opts.module);
-            let mut reader = File::open(&opts.module)
-                .with_context(|| format!("failed opening {:?}", opts.module))?;
+            let path = opts.module.expect("missing required arg");
+            info!("reading module from {:?}", path);
+            let mut reader = File::open(&path)
+                .with_context(|| format!("failed opening {:?}", path))?;
         }
     }
 

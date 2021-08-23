@@ -359,6 +359,7 @@ dependencies = [
  "anyhow",
  "cfg-if",
  "env_logger",
+ "lazy_static",
  "log",
  "structopt",
  "wasi-common",
