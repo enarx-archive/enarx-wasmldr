@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
+// This is WIP code, so I'm gonna hush a bunch of errors
+#![allow(dead_code)]
+
 use crate::config::{DeployConfig, HandleFrom};
 use anyhow::{bail, Context, Result};
-use log::debug;
 use wasmtime_wasi::sync::WasiCtxBuilder;
 
 /// The error codes of workload execution.
@@ -26,7 +28,7 @@ pub enum Error {
 
 use std::fmt;
 
-/* FIXME: either implement this properly *or* just use anyhow .context */
+/* FIXME: either implement this properly *or* only use anyhow .context */
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "placeholder impl")
@@ -40,7 +42,7 @@ pub fn run<T: AsRef<str>, U: AsRef<str>>(
     envs: impl IntoIterator<Item = (U, U)>,
 ) -> Result<Box<[wasmtime::Val]>> {
     let mut wasmconfig = wasmtime::Config::new();
-    // FIXME: get features from CLI / config object
+    // TODO: get features from CLI / config object
     // Support module-linking (https://github.com/webassembly/module-linking)
     wasmconfig.wasm_module_linking(true);
     // module-linking requires multi-memory
@@ -69,14 +71,15 @@ pub fn run<T: AsRef<str>, U: AsRef<str>>(
             .context("adding envs")?;
     }
 
-    // TODO: get this config from the caller.. set up filehandles & sockets, etc etc
+    // Set up pre-populated filehandles etc in our WasiCtx
+    // TODO: get this config from the caller..
     let deploy_config = DeployConfig {
         stdin: HandleFrom::Inherit,
         stdout: HandleFrom::Inherit,
         stderr: HandleFrom::Inherit,
     };
     match deploy_config.stdin {
-        HandleFrom::File(path) => {
+        HandleFrom::File(_) => {
             bail!("HandleFrom::File() not implemented")
         }
         HandleFrom::Inherit => {
@@ -86,7 +89,7 @@ pub fn run<T: AsRef<str>, U: AsRef<str>>(
     };
 
     match deploy_config.stdout {
-        HandleFrom::File(path) => {
+        HandleFrom::File(_) => {
             bail!("HandleFrom::File() not implemented")
         }
         HandleFrom::Inherit => {
@@ -96,7 +99,7 @@ pub fn run<T: AsRef<str>, U: AsRef<str>>(
     };
 
     match deploy_config.stderr {
-        HandleFrom::File(path) => {
+        HandleFrom::File(_) => {
             bail!("HandleFrom::File() not implemented")
         }
         HandleFrom::Inherit => {
