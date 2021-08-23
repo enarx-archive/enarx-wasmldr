@@ -28,52 +28,42 @@
 #![deny(missing_docs)]
 #![deny(clippy::all)]
 
-mod bundle;
-mod config;
-mod virtfs;
+mod cli;
 mod workload;
 
-use cfg_if::cfg_if;
-use log::info;
+use log::{debug, info};
+use structopt::StructOpt;
 
 use std::fs::File;
 use std::io::Read;
-#[cfg(unix)]
-use std::os::unix::io::FromRawFd;
-
-#[cfg(unix)]
-const FD: std::os::unix::io::RawFd = 3;
 
 fn main() {
-    let _ = env_logger::try_init_from_env(env_logger::Env::default());
+    // Initialize the logger, taking settings from the default env vars
+    env_logger::Builder::from_default_env().init();
 
-    // Skip the program name by default, but also skip the enarx-keepldr image
-    // name if it happens to precede the regular command line arguments.
-    let nskip = 1 + std::env::args()
-        .take(1)
-        .filter(|s| s.ends_with("enarx-keepldr"))
-        .count();
-    let mut args = std::env::args().skip(nskip);
-    let vars = std::env::vars();
+    info!("version {} starting up", env!("CARGO_PKG_VERSION"));
 
-    let mut reader = if let Some(path) = args.next() {
-        File::open(&path).expect("Unable to open file")
-    } else {
-        cfg_if! {
-            if #[cfg(unix)] {
-                unsafe { File::from_raw_fd(FD) }
-            } else {
-                unreachable!();
-            }
-        }
-    };
+    debug!("parsing argv");
+    let opts = cli::RunOptions::from_args();
+    info!("opts: {:#?}", opts);
+
+    info!("reading {:?}", opts.module);
+    // TODO: don't just panic here...
+    let mut reader = File::open(&opts.module).expect("Unable to open file");
 
     let mut bytes = Vec::new();
     reader
         .read_to_end(&mut bytes)
         .expect("Failed to load workload");
 
-    let result = workload::run(&bytes, args, vars).expect("Failed to run workload");
+    // FUTURE: measure opts.envs, opts.args, opts.wasm_features
+    // FUTURE: fork() the workload off into a separate memory space
 
+    info!("running workload");
+    // TODO: pass opts.wasm_features
+    let result = workload::run(bytes, opts.args, opts.envs).expect("Failed to run workload");
     info!("got result: {:#?}", result);
+    // TODO: exit with the resulting code, if the result is a return code
+    // FUTURE: produce attestation report here
+
 }
