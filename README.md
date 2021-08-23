@@ -24,10 +24,9 @@ $ RUST_LOG=enarx_wasmldr=info RUST_BACKTRACE=1 cargo run return_1.wasm
     ]
 ```
 
-On Unix platforms, the command can also read the workload from the
-file descriptor (3):
+On Unix platforms, the command can also read the workload from an open file descriptor:
 ```console
-$ RUST_LOG=enarx_wasmldr=info RUST_BACKTRACE=1 cargo run 3< return_1.wasm
+$ RUST_LOG=enarx_wasmldr=info RUST_BACKTRACE=1 cargo run -- --module-on-fd=3 3< return_1.wasm
 ```
 
 
