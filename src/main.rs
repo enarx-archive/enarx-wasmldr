@@ -19,10 +19,9 @@
 //!     ]
 //! ```
 //!
-//! On Unix platforms, the command can also read the workload from the
-//! file descriptor (3):
+//! On Unix platforms, the command can also read the workload from an open file descriptor:
 //! ```console
-//! $ RUST_LOG=enarx_wasmldr=info RUST_BACKTRACE=1 cargo run 3< return_1.wasm
+//! $ RUST_LOG=enarx_wasmldr=info RUST_BACKTRACE=1 cargo run -- --module-on-fd=3 3< return_1.wasm
 //! ```
 //!
 #![deny(missing_docs)]
@@ -31,14 +30,35 @@
 mod cli;
 mod workload;
 
+use anyhow::{Context, Result};
+use cli::RunOptions;
 use log::{debug, info};
 use structopt::StructOpt;
 
 use std::fs::File;
 use std::io::Read;
+#[cfg(unix)]
+use std::os::unix::io::FromRawFd;
 
-fn main() {
-    // Initialize the logger, taking settings from the default env vars
+// SAFETY: If opts.module_on_fd is Some(fd) we'll use File::from_raw_fd(fd),
+// which is unsafe if something else is using that fd already. So this function
+// is safe as long as it is called before anything else opens a file/socket/etc.
+// (parse_module_fd() enforces fd >= 3, so we can ignore stdin/out/err.)
+unsafe fn get_module_reader(opts: &RunOptions) -> Result<File> {
+    #[cfg(unix)]
+    if let Some(fd) = opts.module_on_fd {
+        info!("reading module from fd {:?}", fd);
+        return Ok(File::from_raw_fd(fd));
+    };
+    let path = opts.module.as_ref().expect("missing required arg");
+    info!("reading module from {:?}", path);
+    File::open(path).with_context(|| format!("failed opening {:?}", path))
+}
+
+fn main() -> Result<()> {
+    // Initialize the logger, taking filtering and style settings from the
+    // default env vars (RUST_LOG and RUST_LOG_STYLE).
+    // The log target is the default target (stderr), so no files get opened.
     env_logger::Builder::from_default_env().init();
 
     info!("version {} starting up", env!("CARGO_PKG_VERSION"));
@@ -47,22 +67,20 @@ fn main() {
     let opts = cli::RunOptions::from_args();
     info!("opts: {:#?}", opts);
 
-    info!("reading {:?}", opts.module);
-    // TODO: don't just panic here...
-    let mut reader = File::open(&opts.module).expect("Unable to open file");
-
+    // SAFETY: This is safe because we haven't opened anything else yet.
+    let mut reader = unsafe { get_module_reader(&opts) }?;
     let mut bytes = Vec::new();
-    reader
-        .read_to_end(&mut bytes)
-        .expect("Failed to load workload");
+    reader.read_to_end(&mut bytes).context("loading module")?;
 
-    // FUTURE: measure opts.envs, opts.args, opts.wasm_features
-    // FUTURE: fork() the workload off into a separate memory space
+    // FUTURE: measure opts.envs, opts.args, opts.wasm_features, etc
+    // FUTURE: fork() the workload off into a separate memory space?
 
+    // TODO: configure wasmtime, stdio, etc.
     info!("running workload");
-    // TODO: pass opts.wasm_features
     let result = workload::run(bytes, opts.args, opts.envs).expect("Failed to run workload");
     info!("got result: {:#?}", result);
     // TODO: exit with the resulting code, if the result is a return code
     // FUTURE: produce attestation report here
+
+    Ok(())
 }
