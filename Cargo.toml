@@ -28,7 +28,7 @@ env_logger = "0.9"
 log = "0.4"
 
 wasmparser = "0.80"
-structopt = "0.3.22"
+structopt = "0.3.23"
 anyhow = "1.0"
 
 [build-dependencies]
