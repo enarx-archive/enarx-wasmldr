@@ -21,7 +21,7 @@ is-it-maintained-issue-resolution = { repository = "enarx/enarx-wasmldr" }
 is-it-maintained-open-issues = { repository = "enarx/enarx-wasmldr" }
 
 [dependencies]
-wasmtime = { version = "0.29", default-features = false }
+wasmtime = { version = "0.30", default-features = false }
 wasmtime-wasi = { version = "0.29", default-features = false, features = ["sync"] }
 wasi-common = { version = "0.29", default-features = false }
 env_logger = "0.9"
