@@ -21,10 +21,6 @@ pub struct RunOptions {
     )]
     pub envs: Vec<(String, String)>,
 
-    /// Name of the function to invoke
-    #[structopt(long, value_name = "FUNCTION")]
-    invoke: Option<String>,
-
     // TODO: --inherit-env
     // TODO: --stdin, --stdout, --stderr
     /// Path of the WebAssembly module to run
